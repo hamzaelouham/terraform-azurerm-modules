@@ -1,0 +1,37 @@
+# Local Terraform directories
+**/.terraform/*
+
+# State files
+*.tfstate
+*.tfstate.*
+
+# Plan files
+*.tfplan
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI config
+.terraformrc
+terraform.rc
+
+# Lock file: not committed in a module repo, the caller pins provider versions
+.terraform.lock.hcl
+
+# Variable files may contain real values (example tfvars are allowed)
+*.tfvars
+*.tfvars.json
+!examples/**/*.tfvars
+
+# CI tools downloaded locally
+.tools/
+
+# Generated release notes
+release-notes.md
