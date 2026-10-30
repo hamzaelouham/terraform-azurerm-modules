@@ -1,6 +1,6 @@
 # terraform-azurerm-modules - Project Overview
 
-<!-- blueprint:source-hash d1927bf961f467a3a80e07b44b27ebdd691621456680f7cbf6d2b4bab9fba771 -->
+<!-- blueprint:source-hash 4c081c2df806511918112cb3235d75c68c35d116dee7254d7794caf5c55a006d -->
 
 > A shared library of reusable Terraform modules for Azure, consumed by team stacks.
 

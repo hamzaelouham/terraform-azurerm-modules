@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `resource-group`: the `tags` input is renamed to `rg_tags`. Callers passing
   `tags` must switch to `rg_tags`.
+- All modules now require Terraform `>= 1.17` (previously `>= 1.3`). Callers on
+  older versions must upgrade.
 
 ### Added
 
@@ -29,6 +31,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   managed identity by default. `vm_tags` also reaches the OS disk. Deploys into an
   existing resource group and subnet. Linux uses SSH keys only; Windows takes
   `vm_admin_password` from the caller. Requires azurerm 5.x and azapi 2.x.
+- `storage-account` module: storage account with HTTPS only and TLS 1.2, public
+  containers off by default, optional network rules (`sa_network_rules`) and blob
+  versioning/soft delete (`sa_blob_properties`), blob containers
+  (`sa_containers`) and file shares (`sa_file_shares`). Deploys into an existing
+  resource group. Requires azurerm 5.x.
 
 ### Changed
 

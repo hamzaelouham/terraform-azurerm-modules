@@ -14,8 +14,8 @@
 
 ## Versions and providers
 
-- `required_version = ">= 1.3"`. Do not use newer language features without
-  raising it: no cross-variable validation (1.9), no `strcontains` (1.5).
+- `required_version = ">= 1.17"` in every module. Do not use newer language
+  features without raising it.
 - Pin providers to a major range: azurerm `">= 5.0, < 6.0"`, azapi
   `">= 2.0, < 3.0"`, azuread 3.x. Use azapi only for what azurerm can't do.
 - Modules never configure providers; callers do.

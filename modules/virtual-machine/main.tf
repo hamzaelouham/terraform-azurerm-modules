@@ -63,7 +63,6 @@ resource "azurerm_network_interface" "nic" {
     public_ip_address_id          = one(azurerm_public_ip.pip[*].id)
   }
 
-  # Checks that span several variables, which variable validation cannot do on Terraform < 1.9.
   lifecycle {
     precondition {
       condition     = var.vm_source_image == null || var.vm_source_image_id == null
