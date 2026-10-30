@@ -53,8 +53,11 @@ for dir in modules/*/; do
   if [ -z "$only" ]; then
     check "$dir: trivy" trivy config --severity HIGH,CRITICAL --exit-code 1 --ignorefile "$root/.trivyignore" "$dir"
   fi
-  # --lockfile=false: init just wrote a lock file, and reading it would pin provider versions in the docs.
-  check "$dir: terraform-docs" terraform-docs markdown table --lockfile=false --output-file README.md --output-mode inject --output-check "$dir"
+  # README.md is optional, but one that exists must carry current generated docs.
+  if [ -f "$dir/README.md" ]; then
+    # --lockfile=false: init just wrote a lock file, and reading it would pin provider versions in the docs.
+    check "$dir: terraform-docs" terraform-docs markdown table --lockfile=false --output-file README.md --output-mode inject --output-check "$dir"
+  fi
   if [ -d "$dir/tests" ]; then
     check "$dir: test" terraform -chdir="$dir" test
   fi
