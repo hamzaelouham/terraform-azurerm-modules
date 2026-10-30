@@ -1,0 +1,45 @@
+trigger:
+  branches:
+    include: [main]
+  tags:
+    exclude: ['*']
+
+pr:
+  branches:
+    include: [main]
+
+schedules:
+  - cron: "0 6 * * 1"
+    displayName: Weekly scan
+    branches:
+      include: [main]
+    always: true
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  terraformVersion: 1.17.0
+
+jobs:
+  - job: verify
+    condition: ne(variables['Build.Reason'], 'Schedule')
+    steps:
+      # Azure container jobs don't support the Alpine-based hashicorp/terraform image.
+      - script: |
+          curl -fsSL "https://releases.hashicorp.com/terraform/$(terraformVersion)/terraform_$(terraformVersion)_linux_amd64.zip" -o "$(Agent.TempDirectory)/terraform.zip"
+          unzip -q "$(Agent.TempDirectory)/terraform.zip" -d "$(Agent.TempDirectory)/terraform"
+          echo "##vso[task.prependpath]$(Agent.TempDirectory)/terraform"
+        displayName: Install Terraform
+      - script: sh scripts/install-tools.sh
+        displayName: Install CI tools
+      - script: sh scripts/verify.sh
+        displayName: Verify
+
+  - job: weekly_scan
+    condition: eq(variables['Build.Reason'], 'Schedule')
+    steps:
+      - script: sh scripts/install-tools.sh
+        displayName: Install CI tools
+      - script: sh scripts/trivy-scan.sh LOW
+        displayName: Weekly scan

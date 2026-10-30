@@ -1,0 +1,35 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.17.0
+          terraform_wrapper: false
+      - run: sh scripts/install-tools.sh
+      - run: sh scripts/verify.sh
+        env:
+          # tflint --init reads GitHub releases; anonymous calls hit rate limits on shared runners.
+          GITHUB_TOKEN: ${{ github.token }}
+
+  weekly-scan:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: sh scripts/install-tools.sh
+      - run: sh scripts/trivy-scan.sh LOW

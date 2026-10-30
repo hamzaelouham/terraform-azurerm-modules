@@ -1,0 +1,32 @@
+trigger:
+  branches:
+    exclude: ['*']
+  tags:
+    include: ['*/v*']
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  terraformVersion: 1.17.0
+
+steps:
+  - checkout: self
+    fetchDepth: 0
+    fetchTags: true
+  # Azure container jobs don't support the Alpine-based hashicorp/terraform image.
+  - script: |
+      curl -fsSL "https://releases.hashicorp.com/terraform/$(terraformVersion)/terraform_$(terraformVersion)_linux_amd64.zip" -o "$(Agent.TempDirectory)/terraform.zip"
+      unzip -q "$(Agent.TempDirectory)/terraform.zip" -d "$(Agent.TempDirectory)/terraform"
+      echo "##vso[task.prependpath]$(Agent.TempDirectory)/terraform"
+    displayName: Install Terraform
+  - script: sh scripts/install-tools.sh
+    displayName: Install CI tools
+  # Read from the environment: Build.SourceBranchName would cut the tag at its slash.
+  - script: RELEASE_TAG="${BUILD_SOURCEBRANCH#refs/tags/}" sh scripts/release-check.sh
+    displayName: Release check
+  - publish: release-notes.md
+    artifact: release-notes
+    displayName: Publish release notes

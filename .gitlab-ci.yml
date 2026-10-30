@@ -1,0 +1,58 @@
+stages:
+  - check
+  - release
+
+default:
+  image:
+    name: hashicorp/terraform:1.17.0
+    entrypoint: [""]
+
+verify:
+  stage: check
+  rules:
+    - if: $CI_COMMIT_TAG || $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - sh scripts/install-tools.sh
+    - sh scripts/verify.sh
+
+# Needs a weekly pipeline schedule on main, created under Build > Pipeline schedules.
+weekly-scan:
+  stage: check
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - sh scripts/install-tools.sh
+    - sh scripts/trivy-scan.sh LOW
+
+release-check:
+  stage: check
+  rules:
+    - if: $CI_COMMIT_TAG
+  variables:
+    GIT_DEPTH: "0"
+    RELEASE_TAG: $CI_COMMIT_TAG
+  script:
+    - sh scripts/install-tools.sh
+    - sh scripts/release-check.sh
+  artifacts:
+    paths:
+      - release-notes.md
+
+release-publish:
+  stage: release
+  image:
+    name: registry.gitlab.com/gitlab-org/cli:v1.126.0
+    entrypoint: [""]
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs:
+    - release-check
+  script:
+    - echo "Publishing the release for the existing tag."
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: $CI_COMMIT_TAG
+    description: release-notes.md

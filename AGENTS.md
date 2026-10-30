@@ -327,5 +327,16 @@ Terraform module library; no dev server or build. Run from the repo root unless 
 - Validate a module: `terraform -chdir=modules/<name> init -backend=false && terraform -chdir=modules/<name> validate`
 - Test: `terraform -chdir=modules/<name> test` (offline, mocked providers; run after `init -backend=false`, for each module that has a `tests/` folder)
 
-There is no combined Verify command yet, and the four CI files (GitHub Actions,
-GitLab CI, Jenkins, Azure Pipelines) are empty.
+- Install CI tools: `sh scripts/install-tools.sh` (pinned tflint, trivy and
+  terraform-docs into `.tools/bin`)
+- Verify: `sh scripts/verify.sh` (`fmt`, then init, validate, tflint, trivy,
+  terraform-docs and test for every module; reports all failures at the end; needs
+  network access)
+- Trivy at a severity and above: `sh scripts/trivy-scan.sh <LOW|MEDIUM|HIGH|CRITICAL> [module]`
+  (the weekly schedule runs `LOW`; before tagging, run `MEDIUM`)
+- Release check: `RELEASE_TAG=<module>/vX.Y.Z sh scripts/release-check.sh` (needs the
+  tag to exist; pipelines and agents never create, move or delete tags)
+
+CI and release run those same commands on four platforms. GitHub Actions and Azure
+Pipelines use `ci.yml` and `release.yml`; GitLab CI and Jenkins use one file each
+(`.gitlab-ci.yml`, `Jenkinsfile`). Terraform is pinned to 1.17.0 in all of them.
