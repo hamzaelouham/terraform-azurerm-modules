@@ -42,4 +42,23 @@ Defaults:
 Containers and shares are created through Azure Resource Manager, so Terraform
 can still manage them when network rules deny access or shared keys are off.
 
+## Private endpoint
+
+Optional, for the blob service only, so file shares aren't reached through it.
+
+```hcl
+sa_private_endpoint = {
+  subnet_id           = module.vnet.subnet_ids["endpoints"]
+  private_dns_zone_id = azurerm_private_dns_zone.blob.id # privatelink.blob.core.windows.net
+}
+```
+
+- DNS: the module registers the endpoint in your zone but doesn't create the zone
+  or link it to the vnet. Without `private_dns_zone_id`,
+  `<account>.blob.core.windows.net` keeps resolving to the public IP until you add
+  a record, using the `sa_private_endpoint_ip` output.
+- Public access: the endpoint doesn't close it. For private-only access, also set
+  `sa_public_network_access_enabled = false`.
+- `FileStorage` accounts can't have one, because they have no blob service.
+
 Run `terraform test` in this directory for offline checks (mocked provider).

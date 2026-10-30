@@ -146,6 +146,20 @@ variable "sa_blob_properties" {
   }
 }
 
+variable "sa_private_endpoint" {
+  description = "Private endpoint for the blob service. subnet_id comes from module.vnet.subnet_ids. private_dns_zone_id is the ID of your own privatelink.blob zone, linked to the vnet; null leaves DNS to you (see sa_private_endpoint_ip). Null creates no endpoint. Not supported on FileStorage accounts."
+  type = object({
+    subnet_id           = string
+    private_dns_zone_id = optional(string)
+  })
+  default = null
+
+  validation {
+    condition     = can(regex("/privateDnsZones/privatelink\\.blob\\.[^/]+$", coalesce(try(var.sa_private_endpoint.private_dns_zone_id, null), "/privateDnsZones/privatelink.blob.none")))
+    error_message = "sa_private_endpoint private_dns_zone_id must be the ID of a privatelink.blob zone, or null."
+  }
+}
+
 variable "sa_containers" {
   description = "Blob containers keyed by name. access_type is \"private\" (default), \"blob\" or \"container\"; public types need sa_allow_nested_items_to_be_public."
   type = map(object({

@@ -34,8 +34,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `storage-account` module: storage account with HTTPS only and TLS 1.2, public
   containers off by default, optional network rules (`sa_network_rules`) and blob
   versioning/soft delete (`sa_blob_properties`), blob containers
-  (`sa_containers`) and file shares (`sa_file_shares`). Deploys into an existing
-  resource group. Requires azurerm 5.x.
+  (`sa_containers`), file shares (`sa_file_shares`) and an optional blob private
+  endpoint (`sa_private_endpoint`) with registration in your own private DNS zone.
+  Deploys into an existing resource group. Requires azurerm 5.x.
 
 ### Changed
 

@@ -15,6 +15,11 @@ mock_provider "azurerm" {
       id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Storage/storageAccounts/sttest001/fileServices/default/shares/mock"
     }
   }
+  mock_resource "azurerm_private_endpoint" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/privateEndpoints/mock"
+    }
+  }
 }
 
 variables {
@@ -381,6 +386,140 @@ run "small_premium_share_fails" {
     sa_account_tier = "Premium"
     sa_account_kind = "FileStorage"
     sa_file_shares  = { share = { quota_gb = 50 } }
+  }
+  expect_failures = [azurerm_storage_account.sa]
+}
+
+run "no_private_endpoint_by_default" {
+  command = apply
+
+  assert {
+    condition     = length(azurerm_private_endpoint.pe) == 0
+    error_message = "Expected no private endpoint by default."
+  }
+  assert {
+    condition     = output.sa_private_endpoint_id == null && output.sa_private_endpoint_ip == null
+    error_message = "Expected null private endpoint outputs by default."
+  }
+}
+
+run "private_endpoint" {
+  command = plan
+
+  variables {
+    sa_tags = { env = "test" }
+    sa_private_endpoint = {
+      subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/vnet/subnets/pe"
+    }
+  }
+
+  assert {
+    condition = (
+      azurerm_private_endpoint.pe[0].name == "sttest001-pe" &&
+      azurerm_private_endpoint.pe[0].subnet_id == var.sa_private_endpoint.subnet_id &&
+      azurerm_private_endpoint.pe[0].tags["env"] == "test"
+    )
+    error_message = "Expected a named, tagged endpoint in the given subnet."
+  }
+  assert {
+    condition = (
+      azurerm_private_endpoint.pe[0].private_service_connection[0].name == "sttest001-psc" &&
+      tolist(azurerm_private_endpoint.pe[0].private_service_connection[0].subresource_names) == tolist(["blob"]) &&
+      !azurerm_private_endpoint.pe[0].private_service_connection[0].is_manual_connection
+    )
+    error_message = "Expected an automatically approved connection to the blob subresource."
+  }
+  assert {
+    condition     = length(azurerm_private_endpoint.pe[0].private_dns_zone_group) == 0
+    error_message = "Expected no DNS zone group without private_dns_zone_id."
+  }
+}
+
+run "private_endpoint_outputs" {
+  command = apply
+
+  variables {
+    sa_private_endpoint = {
+      subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/vnet/subnets/pe"
+    }
+  }
+
+  assert {
+    condition     = endswith(output.sa_private_endpoint_id, "/privateEndpoints/mock")
+    error_message = "Expected sa_private_endpoint_id to be the endpoint's ID."
+  }
+  assert {
+    condition     = output.sa_private_endpoint_ip != null
+    error_message = "Expected sa_private_endpoint_ip to be set."
+  }
+}
+
+run "private_endpoint_dns_zone" {
+  command = plan
+
+  variables {
+    sa_private_endpoint = {
+      subnet_id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/vnet/subnets/pe"
+      private_dns_zone_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-dns/providers/Microsoft.Network/privateDnsZones/privatelink.blob.core.windows.net"
+    }
+  }
+
+  assert {
+    condition = (
+      azurerm_private_endpoint.pe[0].private_dns_zone_group[0].name == "sttest001-dns" &&
+      tolist(azurerm_private_endpoint.pe[0].private_dns_zone_group[0].private_dns_zone_ids) == tolist([var.sa_private_endpoint.private_dns_zone_id])
+    )
+    error_message = "Expected one DNS zone group with the given zone."
+  }
+}
+
+run "private_endpoint_on_blockblobstorage" {
+  command = plan
+
+  variables {
+    sa_account_tier = "Premium"
+    sa_account_kind = "BlockBlobStorage"
+    sa_private_endpoint = {
+      subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/vnet/subnets/pe"
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_private_endpoint.pe) == 1
+    error_message = "Expected an endpoint on a BlockBlobStorage account."
+  }
+}
+
+run "private_endpoint_wrong_zone_fails" {
+  command = plan
+  variables {
+    sa_private_endpoint = {
+      subnet_id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/vnet/subnets/pe"
+      private_dns_zone_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-dns/providers/Microsoft.Network/privateDnsZones/privatelink.file.core.windows.net"
+    }
+  }
+  expect_failures = [var.sa_private_endpoint]
+}
+
+run "private_endpoint_lowercase_zone_segment_fails" {
+  command = plan
+  variables {
+    sa_private_endpoint = {
+      subnet_id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/vnet/subnets/pe"
+      private_dns_zone_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-dns/providers/Microsoft.Network/privatednszones/privatelink.blob.core.windows.net"
+    }
+  }
+  expect_failures = [var.sa_private_endpoint]
+}
+
+run "private_endpoint_on_filestorage_fails" {
+  command = plan
+  variables {
+    sa_account_tier = "Premium"
+    sa_account_kind = "FileStorage"
+    sa_private_endpoint = {
+      subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/vnet/subnets/pe"
+    }
   }
   expect_failures = [azurerm_storage_account.sa]
 }

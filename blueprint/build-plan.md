@@ -23,6 +23,6 @@ Seeded by `/adopt`. Checked items already exist in the repo.
 - [x] 3. **key-vault module** - RBAC key vault with purge protection, access policies, network ACLs
 - [x] 4. **service-principal module** - Entra ID app and SP with federated credentials and rotating secret
 - [x] 5. **virtual-machine module** - Linux/Windows VM with NIC, public/private IP, data disks, identity, offline tests
-- [ ] 6. **storage-account module** - fill the empty `modules/storage-account`
+- [x] 6. **storage-account module** - fill the empty `modules/storage-account`
   - [x] 6a. **Storage account core** - account with secure defaults, network rules, blob containers, file shares
-  - [ ] 6b. **Storage account private endpoint** - optional blob private endpoint into a vnet subnet
+  - [x] 6b. **Storage account private endpoint** - optional blob private endpoint into a vnet subnet

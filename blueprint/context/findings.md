@@ -46,3 +46,19 @@
 **Why it matters:** The error message and spec say `ip_rules` must be public IPv4, but the check excludes only RFC 1918 ranges. Probes accepted `0.0.0.0`, `127.0.0.1`, `169.254.1.1`, `100.64.0.1`, `224.0.0.1`, `255.255.255.255` and the leading-zero `011.1.2.3`. If Azure rejects any of these, the locked plan-time rule is broken. Accepting them grants no access beyond what the caller asked for, so this is a validation accuracy question and not an exposure. Missing validation: Azure documentation or a live plan, neither available in this offline review.
 **Suggested fix:** Confirm against Azure. Then either add the rejected ranges and forbid leading zeros in the regex, or reword the message to "non-private".
 **Resolution:**
+
+### F-13 [P2] open - Tests don't pin which account the private endpoint connects to
+
+**File:** modules/storage-account/tests/storage.tftest.hcl:406
+**Found:** 2026-10-30 by /audit independent (scope: current; lens: tests)
+**Why it matters:** The coding standards require a passing test for validations and values the module derives, and this feature exists to change a network boundary. In a scratch copy, 21 single-line mutants of the endpoint code were run against the suite. 14 failed it and 7 survived. The most important survivor points `private_connection_resource_id` at a different storage account, and the suite stays green. Five others are real gaps: `resource_group_name` and `location` on the endpoint, `sa_private_endpoint_ip` returning the endpoint's name (line 452 only checks non-null), unescaped dots in the zone regex, and narrowing the zone suffix to `core.windows.net`, which removes the sovereign-cloud support the spec asks for. The seventh, dropping the regex's `$`, is not counted as a gap because the provider's ID parser should still reject what it would admit at plan. The module's behavior is correct today, so this is missing protection, not a defect.
+**Suggested fix:** In the `command = apply` run at line 438, assert `private_connection_resource_id == output.sa_id` and that `sa_private_endpoint_ip` equals the resource's `private_ip_address`. In the plan run at line 406, assert `resource_group_name` and `location`. Add one accepting run for a `privatelink.blob.core.usgovcloudapi.net` zone and one rejecting run for a zone name with non-literal dots, such as `privatelinkXblobXcore`.
+**Resolution:**
+
+### F-14 [P2] unverified - The private-only note may strand off-network Terraform runners
+
+**File:** modules/storage-account/README.md:60
+**Found:** 2026-10-30 by /audit independent (scope: current; lens: quality)
+**Why it matters:** The README tells callers to set `sa_public_network_access_enabled = false` for private-only access, and says nothing about where Terraform must run. azurerm 5.12.0 has a `features.storage.data_plane_available` provider setting and a storage accounts data plane client. If `azurerm_storage_account` reads the data plane by default, a runner outside the vnet could fail on plan or apply after following this note. Missing validation: a live apply with public access disabled from a runner outside the vnet, or provider source or documentation. This offline review has none of them, and the binary search did not show the default or when the client is used.
+**Suggested fix:** Confirm with one live apply. If it fails, add one README line saying the runner needs network access to the endpoint, or that callers set `data_plane_available = false` in their provider, whichever the test proves works.
+**Resolution:**

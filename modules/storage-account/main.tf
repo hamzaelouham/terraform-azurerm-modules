@@ -71,6 +71,10 @@ resource "azurerm_storage_account" "sa" {
       error_message = "FileStorage accounts have no blob service; remove sa_blob_properties or use StorageV2."
     }
     precondition {
+      condition     = var.sa_account_kind != "FileStorage" || var.sa_private_endpoint == null
+      error_message = "FileStorage accounts have no blob service; remove sa_private_endpoint or use StorageV2."
+    }
+    precondition {
       condition = alltrue([
         for share in var.sa_file_shares :
         var.sa_account_kind == "FileStorage" ? (coalesce(share.access_tier, "Premium") == "Premium" && share.quota_gb >= 100) : share.access_tier != "Premium"
@@ -101,4 +105,29 @@ resource "azurerm_storage_share" "share" {
   storage_account_id = azurerm_storage_account.sa.id
   quota              = each.value.quota_gb
   access_tier        = each.value.access_tier
+}
+
+resource "azurerm_private_endpoint" "pe" {
+  count = var.sa_private_endpoint == null ? 0 : 1
+
+  name                = "${var.sa_name}-pe"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  subnet_id           = var.sa_private_endpoint.subnet_id
+  tags                = var.sa_tags
+
+  private_service_connection {
+    name                           = "${var.sa_name}-psc"
+    private_connection_resource_id = azurerm_storage_account.sa.id
+    subresource_names              = ["blob"]
+    is_manual_connection           = false
+  }
+
+  dynamic "private_dns_zone_group" {
+    for_each = var.sa_private_endpoint.private_dns_zone_id == null ? [] : [var.sa_private_endpoint.private_dns_zone_id]
+    content {
+      name                 = "${var.sa_name}-dns"
+      private_dns_zone_ids = [private_dns_zone_group.value]
+    }
+  }
 }
