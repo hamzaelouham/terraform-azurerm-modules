@@ -1,7 +1,7 @@
 resource "azurerm_resource_group" "rg" {
   name     = var.name
   location = lower(replace(var.location, " ", ""))
-  tags     = var.tags
+  tags     = var.rg_tags
 
 
   lifecycle {
