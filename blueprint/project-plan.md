@@ -8,16 +8,14 @@
 
 Teams deploying to Azure keep rewriting the same Terraform for resource groups,
 networks, key vaults, identities and VMs, each time with slightly different
-naming, tagging and security defaults. This repo is a shared library of
-reusable azurerm modules so team stacks can compose tested building blocks with
-secure defaults instead of copying resources around.
+naming, tagging and security defaults. This repo is a public library of
+reusable, versioned azurerm modules so stacks can compose tested building blocks
+with secure defaults instead of copying resources around.
 
 ## 2. Users - Who is this for?
 
-Engineers on a team who write Terraform stacks for Azure and consume these
-modules from their own root configurations.
-
-> TODO (confirm): which team(s) consume it, and whether external users are expected.
+Engineers who write Terraform stacks for Azure and consume these modules from
+their own root configurations.
 
 ## 3. Features - What does the MVP need?
 
@@ -28,10 +26,11 @@ Shipped (present in the repo):
 - `key-vault` - key vault with RBAC by default, purge protection, optional access policies and network ACLs
 - `service-principal` - Entra ID app and service principal, OIDC federated credentials, optional rotating secret
 - `virtual-machine` - Linux or Windows VM with NIC, optional public IP, static or dynamic private IP, data disks (incl. Ultra/PremiumV2), managed identity, OS disk tagging
+- `storage-account` - storage account with secure defaults, optional network rules and blob data protection, blob containers, file shares, optional blob private endpoint
 
 Next:
 
-- `storage-account` module (the folder exists, empty)
+- `aks` module (the folder exists, empty)
 
 ## 4. Data - What are we storing?
 
@@ -41,15 +40,16 @@ flow through sensitive variables and outputs and must never be committed.
 
 ## 5. Tech - What stack are we using?
 
-- Terraform `>= 1.3` (developed with 1.17)
+- Terraform `>= 1.17` in modules; 1.17.0 pinned in CI
 - Providers: azurerm 5.x (resource-group allows 4.x), azapi 2.x (VM OS disk tags), azuread 3.x and time (service-principal)
 - `terraform test` with mocked providers for offline module tests
 - Hosted on GitHub: `hamzaelouham/terraform-azurerm-modules`
-- CI: the same pipeline is intended on four platforms (GitHub Actions, GitLab CI, Jenkins, Azure Pipelines); all four files are currently empty
+- CI tools: tflint 0.65.0, tflint-ruleset-azurerm 0.33.0, trivy 0.76.1, terraform-docs 0.24.0
+- CI: `terraform fmt`, init + validate, tflint, trivy (HIGH, CRITICAL), terraform-docs, then `terraform test` where a module has tests; the same pipeline (`sh scripts/verify.sh`) on four platforms (GitHub Actions, GitLab CI, Jenkins, Azure Pipelines); written, not yet run on any of them
 
 ## 6. Monetize - How will this make money?
 
-Not applicable: an internal team module library.
+Not applicable: a public module library.
 
 ## 7. UI/UX - How should this look and feel?
 
@@ -59,12 +59,12 @@ defaults (no public IP, SSH keys only on Linux, purge protection on).
 
 ## 8. Deployment - Where and how will this ship?
 
-Modules are consumed by source reference from team stacks; nothing is deployed
-from this repo itself. Changes are recorded in `CHANGELOG.md` (Keep a Changelog).
-
-> TODO (confirm): how consumers pin versions (git tags with `?ref=`, a private registry, or another scheme).
+Each module is versioned independently with git tags and consumed by a separate
+live-infra repo through `?ref=<module>/vX.Y.Z`; nothing is deployed from this repo
+itself. Changes are recorded in `CHANGELOG.md` (Keep a Changelog).
 
 ## 9. Usage model and constraints (optional)
 
-- Internal team use; consumers are trusted engineers.
+- Public library.
+- Module CI never runs `apply` and has no Azure credentials.
 - Example stacks under `examples/` are kept local only and are not pushed.

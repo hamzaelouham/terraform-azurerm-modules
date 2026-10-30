@@ -26,3 +26,4 @@ Seeded by `/adopt`. Checked items already exist in the repo.
 - [x] 6. **storage-account module** - fill the empty `modules/storage-account`
   - [x] 6a. **Storage account core** - account with secure defaults, network rules, blob containers, file shares
   - [x] 6b. **Storage account private endpoint** - optional blob private endpoint into a vnet subnet
+- [ ] 7. **aks module**
