@@ -94,14 +94,14 @@ variable "kv_public_network_access_enabled" {
 }
 
 variable "kv_network_acls" {
-  description = "Network rules for the key vault, e.g. allowed subnet IDs from module.vnet.subnet_ids. Null leaves the vault open to all networks allowed by kv_public_network_access_enabled."
+  description = "Network rules for the key vault, e.g. allowed subnet IDs from module.vnet.subnet_ids. Denies all networks by default; null removes the rules and leaves the vault open to all networks allowed by kv_public_network_access_enabled."
   type = object({
     default_action             = optional(string, "Deny")
     bypass                     = optional(string, "AzureServices")
     ip_rules                   = optional(list(string), [])
     virtual_network_subnet_ids = optional(list(string), [])
   })
-  default = null
+  default = {}
 
   validation {
     condition     = var.kv_network_acls == null || (contains(["Allow", "Deny"], try(var.kv_network_acls.default_action, "")) && contains(["AzureServices", "None"], try(var.kv_network_acls.bypass, "")))

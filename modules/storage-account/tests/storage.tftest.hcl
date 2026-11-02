@@ -43,12 +43,29 @@ run "defaults_are_secure" {
     error_message = "Expected TLS1_2, HTTPS only, no public containers, shared key on, public network on, Hot tier."
   }
   assert {
-    condition     = length(azurerm_storage_account.sa.network_rules) == 0 && length(azurerm_storage_account.sa.blob_properties) == 0
-    error_message = "Expected no network_rules or blob_properties by default."
+    condition     = azurerm_storage_account.sa.network_rules[0].default_action == "Deny"
+    error_message = "Expected network rules to deny by default."
+  }
+  assert {
+    condition     = length(azurerm_storage_account.sa.blob_properties) == 0
+    error_message = "Expected no blob_properties by default."
   }
   assert {
     condition     = length(azurerm_storage_container.container) == 0 && length(azurerm_storage_share.share) == 0
     error_message = "Expected no containers or shares by default."
+  }
+}
+
+run "null_network_rules_opt_out" {
+  command = plan
+
+  variables {
+    sa_network_rules = null
+  }
+
+  assert {
+    condition     = length(azurerm_storage_account.sa.network_rules) == 0
+    error_message = "Expected no network_rules block when sa_network_rules is null."
   }
 }
 

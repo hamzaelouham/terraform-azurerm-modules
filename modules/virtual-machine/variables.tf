@@ -46,13 +46,13 @@ variable "vm_computer_name" {
 }
 
 variable "vm_size" {
-  description = "VM size, e.g. \"Standard_B2s\" or \"Standard_D2s_v5\"."
+  description = "VM size, e.g. \"Standard_B2s_v2\" or \"Standard_D2s_v5\"."
   type        = string
-  default     = "Standard_B2s"
+  default     = "Standard_B2s_v2"
 
   validation {
     condition     = can(regex("^(Standard|Basic)_", var.vm_size))
-    error_message = "vm_size must be an Azure VM size such as \"Standard_B2s\"."
+    error_message = "vm_size must be an Azure VM size such as \"Standard_B2s_v2\"."
   }
 }
 

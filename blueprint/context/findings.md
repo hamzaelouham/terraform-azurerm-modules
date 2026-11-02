@@ -61,7 +61,7 @@
 **Found:** 2026-10-30 by /audit independent (scope: current; lens: quality)
 **Why it matters:** The README tells callers to set `sa_public_network_access_enabled = false` for private-only access, and says nothing about where Terraform must run. azurerm 5.12.0 has a `features.storage.data_plane_available` provider setting and a storage accounts data plane client. If `azurerm_storage_account` reads the data plane by default, a runner outside the vnet could fail on plan or apply after following this note. Missing validation: a live apply with public access disabled from a runner outside the vnet, or provider source or documentation. This offline review has none of them, and the binary search did not show the default or when the client is used.
 **Suggested fix:** Confirm with one live apply. If it fails, add one README line saying the runner needs network access to the endpoint, or that callers set `data_plane_available = false` in their provider, whichever the test proves works.
-**Resolution:** Terraform MCP docs (azurerm 5.12.0), 2026-10-30: the Features Block guide says `data_plane_available` decides whether `azurerm_storage_account` uses data plane APIs, defaults to `true`, and that `false` bypasses availability checks for accounts not using `queue_properties` or `static_website`. This module uses neither, so the risk is more likely and the likely fix is that provider setting. The same risk applies to `default_action = "Deny"`, which makes the README claim at `modules/storage-account/README.md:42` incomplete. Still unverified; needs a live apply.
+**Resolution:** Terraform MCP docs (azurerm 5.12.0), 2026-10-30: the Features Block guide says `data_plane_available` decides whether `azurerm_storage_account` uses data plane APIs, defaults to `true`, and that `false` bypasses availability checks for accounts not using `queue_properties` or `static_website`. This module uses neither, so the risk is more likely and the likely fix is that provider setting. The same risk applies to `default_action = "Deny"`, which makes the README claim at `modules/storage-account/README.md:42` incomplete. Still unverified; needs a live apply. Independent review of d461d45, 2026-11-02: this fix moves the risk onto the default path, because `sa_network_rules` now defaults to `{}`, so an account with no network inputs gets `default_action = "Deny"`, not only one that opted in. The mocked provider can't show the data plane call, and neither the README nor the CHANGELOG entry mentions runner reachability. The spec already defers this to the live test repo. If the live apply fails, the README note and the CHANGELOG Breaking entry both need the outcome.
 
 ### F-15 [P2] open - NSG rule ports and names pass plan though Azure documents narrower values
 
@@ -77,7 +77,7 @@
 **Found:** 2026-10-30 by /audit (scope: modules; lens: tests)
 **Why it matters:** The standards name validations and preconditions as what to test, but `vnet`, `key-vault`, `service-principal` and `resource-group` have no `tests/` folder. The riskiest is the `vnet` CIDR containment precondition and NSG priority uniqueness, followed by the `service-principal` secret rotation date and the `key-vault` RBAC and access policy precondition. In `virtual-machine`, the no-SSH-key, both-image-inputs, identity mismatch and 80-character disk name rules also have no rejecting run.
 **Suggested fix:** Add mocked `tests/` suites, starting with `vnet`. `service-principal` needs the azuread and time providers, which aren't in the local provider mirror.
-**Resolution:**
+**Resolution:** Independent review of d461d45, 2026-11-02: `key-vault` is still without a suite, as the spec records. Its new default is guarded by trivy: in a scratch copy, setting `kv_network_acls` back to null or the `default_action` default to `Allow` both fail trivy at HIGH. Nothing in the repo guards the `null` opt-out. A scratch mocked test passed for the default (Deny, AzureServices) and for null (no block), so the behavior is correct today.
 
 ### F-17 [P3] open - SSH key validation and message advertise ECDSA, which Azure doesn't support
 
@@ -109,4 +109,28 @@
 **Found:** 2026-10-30 by /audit (scope: modules; lens: quality)
 **Why it matters:** An azurerm 5.12.0 note says that with `network_rules`, one of `ip_rules` or `virtual_network_subnet_ids` must be set and `default_action` must be `Deny`. The same page lists `Allow` as valid for `default_action`, so the note may be stale. The module accepts `default_action = "Allow"` and `sa_network_rules = {}`. Missing validation: a live plan.
 **Suggested fix:** Confirm with a live plan. If Azure rejects them, add the checks; otherwise leave the module as is and mark this `invalid`.
+**Resolution:** Independent review of d461d45, 2026-11-02: `sa_network_rules = {}` is now the default, so the combination this note questions (no `ip_rules` and no `virtual_network_subnet_ids`) is what every default deployment sends, and the question now decides whether the module's defaults apply at all. Mocked tests can't answer it. Still unverified; add this case to the same live test as F-14.
+
+### F-21 [P2] unverified - The default VM size change may not resize existing VMs, and may reject Gen 1 images
+
+**File:** CHANGELOG.md:18
+**Found:** 2026-11-02 by /audit independent (scope: current; lens: quality)
+**Why it matters:** The Breaking entry says existing VMs using the default "are resized". As the reviewer recalls Azure's documentation, `Standard_B2s` has a local temp disk, `Standard_B2s_v2` has none, Azure doesn't allow resizing between those two kinds of size, and the Bsv2 series runs Generation 2 images only. If so, an upgrading caller gets an apply-time failure rather than a resize, and a new VM on a Gen 1 `vm_source_image` or `vm_source_image_id` fails with the new default. Even a successful resize restarts the VM, which the entry doesn't say. Missing validation: Azure documentation or a live resize; this offline review had neither, and the spec's live checks cover only regional availability of the new size.
+**Suggested fix:** Add a live resize from `Standard_B2s` to the live test repo. Then correct the CHANGELOG entry to what happens (restart, or recreate the VM and keep the old size by setting `vm_size` until then). No module code change is implied unless the test shows otherwise.
+**Resolution:**
+
+### F-22 [P3] open - The tflint comment says prevent_destroy stays the caller's choice, but callers can't set it
+
+**File:** .tflint.hcl:12
+**Found:** 2026-11-02 by /audit independent (scope: current; lens: quality)
+**Why it matters:** A probe with a `lifecycle` block in a `module` call fails with "Reserved block type name in module block", so a caller can't add `prevent_destroy` to a module's resources. Disabling the rule is reasonable, and the first half of the comment is right, but the second half tells readers a protection exists that doesn't. Stateful `key-vault` and `storage-account` resources have no destroy guard available to callers.
+**Suggested fix:** Reword the comment to say that a shared module can't make `prevent_destroy` configurable and callers can't add it, so these modules go without it. Comment only; no current requirement is lost.
+**Resolution:**
+
+### F-23 [P3] open - kv_public_network_access_enabled still describes rules as an extra restriction
+
+**File:** modules/key-vault/variables.tf:90
+**Found:** 2026-11-02 by /audit independent (scope: current; lens: quality)
+**Why it matters:** The description says "Restrict further with kv_network_acls", written when no rules applied by default. With this fix, the default of `true` and the new default rules deny all networks except trusted Azure services, so the public flag on its own no longer grants access. `key-vault` has no README, so this description is the main place a caller reads it. The standards require descriptions to state how defaults behave.
+**Suggested fix:** Reword to say public access stays subject to `kv_network_acls`, which denies by default, matching `sa_public_network_access_enabled`. Description only.
 **Resolution:**

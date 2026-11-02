@@ -11,6 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `tags` must switch to `rg_tags`.
 - All modules now require Terraform `>= 1.17` (previously `>= 1.3`). Callers on
   older versions must upgrade.
+- `key-vault`, `storage-account`: network access is now denied by default
+  (`kv_network_acls` and `sa_network_rules` default to `{}`). Callers relying on
+  open access must add rules, or pass `null` to remove them.
+- `virtual-machine`: the `vm_size` default is now `Standard_B2s_v2`, because
+  `Standard_B2s` is flagged for retirement. Existing VMs using the default are
+  resized; set `vm_size` to keep the old size.
 
 ### Added
 

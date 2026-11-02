@@ -84,14 +84,14 @@ variable "sa_allow_nested_items_to_be_public" {
 }
 
 variable "sa_network_rules" {
-  description = "Network rules, e.g. allowed subnet IDs from module.vnet.subnet_ids and public IPs. Null leaves the account open to all networks allowed by sa_public_network_access_enabled."
+  description = "Network rules, e.g. allowed subnet IDs from module.vnet.subnet_ids and public IPs. Denies all networks by default; null removes the rules and leaves the account open to all networks allowed by sa_public_network_access_enabled."
   type = object({
     default_action             = optional(string, "Deny")
     bypass                     = optional(list(string), ["AzureServices"])
     ip_rules                   = optional(list(string), [])
     virtual_network_subnet_ids = optional(list(string), [])
   })
-  default = null
+  default = {}
 
   validation {
     condition     = var.sa_network_rules == null || contains(["Allow", "Deny"], try(var.sa_network_rules.default_action, ""))
