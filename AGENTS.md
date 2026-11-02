@@ -336,6 +336,9 @@ Terraform module library; no dev server or build. Run from the repo root unless 
   (the weekly schedule runs `LOW`; before tagging, run `MEDIUM`)
 - Release check: `RELEASE_TAG=<module>/vX.Y.Z sh scripts/release-check.sh` (needs the
   tag to exist; pipelines and agents never create, move or delete tags)
+- azurerm update check: `python3 scripts/check-registry.py [github|gitlab|azure]`
+  (compares `.azurerm-reviewed-version` with the registry; with no tracker it only
+  writes `azurerm-report.md`; runs monthly, and on Jenkins as an unstable build)
 
 CI and release run those same commands on four platforms. GitHub Actions and Azure
 Pipelines use `ci.yml` and `release.yml`; GitLab CI and Jenkins use one file each

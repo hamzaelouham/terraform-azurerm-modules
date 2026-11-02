@@ -1,0 +1,23 @@
+# Create this as its own pipeline. The build service identity needs permission to
+# create and edit work items, and the work item it opens is a Task tagged azurerm-update.
+trigger: none
+
+pr: none
+
+schedules:
+  - cron: "23 7 1 * *" # 1st of every month, 07:23 UTC
+    displayName: Monthly azurerm check
+    branches:
+      include: [main]
+    always: true
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - script: sh scripts/install-terraform.sh 1.17.0
+    displayName: Install Terraform
+  - script: python3 scripts/check-registry.py azure
+    displayName: Check azurerm
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)

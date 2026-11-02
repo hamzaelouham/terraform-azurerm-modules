@@ -1,0 +1,23 @@
+name: check-registry
+
+on:
+  schedule:
+    - cron: "23 7 1 * *" # 1st of every month, 07:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-azurerm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.17.0
+          terraform_wrapper: false
+      - run: python3 scripts/check-registry.py github
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

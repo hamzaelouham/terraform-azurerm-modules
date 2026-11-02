@@ -22,10 +22,26 @@ verify:
 weekly-scan:
   stage: check
   rules:
+    - if: $SCHEDULED_JOB == "check-registry"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
   script:
     - sh scripts/install-tools.sh
     - sh scripts/trivy-scan.sh LOW
+
+# Needs a monthly pipeline schedule on main with the variable SCHEDULED_JOB=check-registry,
+# and a masked GITLAB_TOKEN variable: a project access token with the api scope, because
+# job tokens can't be relied on to manage issues.
+check-registry:
+  stage: check
+  image:
+    name: python:3.13-alpine
+    entrypoint: [""]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULED_JOB == "check-registry"
+  script:
+    - sh scripts/install-terraform.sh 1.17.0
+    - python3 scripts/check-registry.py gitlab
 
 release-check:
   stage: check

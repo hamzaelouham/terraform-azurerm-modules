@@ -38,3 +38,6 @@ terraform.rc
 
 # Generated release notes
 release-notes.md
+
+# Generated azurerm review report
+azurerm-report.md
