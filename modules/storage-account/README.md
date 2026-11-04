@@ -5,7 +5,7 @@ protection, plus blob containers and file shares. It deploys into an existing
 resource group, so pair it with the `resource-group` module (and `vnet` for
 subnet rules).
 
-Requires azurerm 5.x.
+Requires azurerm 5.12 or later within 5.x.
 
 ```hcl
 module "storage" {
@@ -69,13 +69,13 @@ Run `terraform test` in this directory for offline checks (mocked provider).
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.17 |
-| <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 5.0, < 6.0 |
+| <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 5.12, < 6.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | >= 5.0, < 6.0 |
+| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | >= 5.12, < 6.0 |
 
 ## Modules
 

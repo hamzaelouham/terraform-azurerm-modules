@@ -27,6 +27,6 @@ Seeded by `/adopt`. Checked items already exist in the repo.
   - [x] 6a. **Storage account core** - account with secure defaults, network rules, blob containers, file shares
   - [x] 6b. **Storage account private endpoint** - optional blob private endpoint into a vnet subnet
 - [x] 7. **aks module** - fill the empty `modules/aks`
-  - [x] 7a. **AKS core cluster** - private-by-default cluster with a system node pool, Azure CNI Overlay, Entra ID RBAC, and optional workload identity, ACR pull, Container Insights and Key Vault secrets CSI
+  - [x] 7a. **AKS core cluster** - private-by-default cluster with a system node pool, Azure CNI Overlay, Entra ID RBAC, Container Insights always on, and optional workload identity, ACR pull and Key Vault secrets CSI
   - [x] 7b. **AKS user node pools** - optional Linux user node pools, regular or Spot, and an opt-in to reserve the system pool for system pods
 - [x] 8. **AI azurerm upgrade agent** - when the monthly check finds a new azurerm version, propose module changes in a draft PR for human review

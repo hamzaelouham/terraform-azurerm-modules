@@ -1,6 +1,6 @@
 # terraform-azurerm-modules - Project Overview
 
-<!-- blueprint:source-hash 168c8c4613103283f534fee32d2b7eb9bad8553a6e705288cba39692c637717f -->
+<!-- blueprint:source-hash 6095ab3ce5267331d19d2bd834b1bb5f06ab20aae520ffc09f50961e1dcd7b89 -->
 
 > A public library of reusable, versioned Terraform modules for Azure.
 
@@ -25,7 +25,7 @@ defaults to compose instead.
 ## Features
 
 In build order. Headline: `virtual-machine`, the module that composes the others.
-Next: `aks`.
+All build-plan items are complete.
 
 1. [x] **resource-group** - resource group with tags and `prevent_destroy`.
 2. [x] **vnet** - virtual network, subnets (service endpoints, NSG association), one NSG with rules.
@@ -35,10 +35,10 @@ Next: `aks`.
 6. [x] **storage-account** - storage account with secure defaults, plus:
    - [x] 6a. **Storage account core** - optional network rules and blob data protection, blob containers, file shares.
    - [x] 6b. **Storage account private endpoint** - optional blob private endpoint into a vnet subnet.
-7. [ ] **aks** - fill the empty `modules/aks`:
-   - [ ] 7a. **AKS core cluster** - private by default, system node pool, Azure CNI Overlay, Entra ID RBAC with local accounts off; optional workload identity, ACR pull, Container Insights, Key Vault secrets CSI.
-   - [ ] 7b. **AKS user node pools** - optional Linux user node pools, regular or Spot; opt-in to reserve the system pool for system pods.
-8. [ ] **AI azurerm upgrade agent** - when the monthly check finds a new azurerm version, propose module changes in a draft PR for human review.
+7. [x] **aks** - fill the empty `modules/aks`:
+   - [x] 7a. **AKS core cluster** - private by default, system node pool, Azure CNI Overlay, Entra ID RBAC with local accounts off, Container Insights always on (Log Analytics workspace required); optional workload identity, ACR pull, Key Vault secrets CSI.
+   - [x] 7b. **AKS user node pools** - optional Linux user node pools, regular or Spot; opt-in to reserve the system pool for system pods.
+8. [x] **AI azurerm upgrade agent** - when the monthly check finds a new azurerm version, propose module changes in a draft PR for human review.
 
 ## Data model
 
@@ -105,9 +105,10 @@ still creates every release tag.
 
 > Resolve these in the plans, then re-run /overview.
 
-- **`service-principal` isn't in the module list you supplied.** It's shipped and stays listed here; confirm it stays in the library.
-- **Release pipeline is unplanned.** Modules are released by git tag, but neither plan says how tags are created or what runs on them.
+- **Project plan §3 still lists `aks` under "Next".** The build plan marks it complete; move it to "Shipped".
+- **CI status is stale in the project plan.** §5 says the pipeline is "written, not yet run on any of them", but it now runs on GitHub Actions.
+- **Release checks are unplanned.** The plans say a person creates every tag, but not what runs on a tag (the release check and its MEDIUM Trivy gate).
 - **CI has no build-plan item.** The project plan names the pipeline, but nothing on the build plan tracks it.
 - **Testing gap.** `AGENTS.md` declares a test gate, but only virtual-machine and storage-account have tests; the other four modules have none.
 - **Provider pin mismatch.** resource-group allows azurerm `>= 4.0`, while the other modules and the coding standards say 5.x.
-- **Build-plan wording.** Item 6 still reads "fill the empty `modules/storage-account`", though it's complete.
+- **Build-plan wording.** Items 6 and 7 still read "fill the empty `modules/...`", though both are complete.

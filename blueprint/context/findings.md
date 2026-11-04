@@ -93,7 +93,7 @@
 **Found:** 2026-10-30 by /audit (scope: modules; lens: quality)
 **Why it matters:** The standards say to pass `location` straight to the provider without normalizing or re-validating it, and to pin azurerm to `>= 5.0, < 6.0`. This module normalizes and validates `location` (`variables.tf:16`) and allows azurerm `>= 4.0` (`versions.tf:7`). The overview's open questions already list the pin mismatch.
 **Suggested fix:** Needs your decision, because it changes shipped behavior: remove the normalization and validation and raise the pin, or record this module as an exception in the standards. Removing them loses the `"West Europe"` normalization of the `location` output.
-**Resolution:**
+**Resolution:** Pin half addressed 2026-11-04 by /implement (fix "Raise the azurerm minimum to 5.12 in every module"): `modules/resource-group/versions.tf` now requires azurerm `>= 5.12, < 6.0`. The `location` normalization and validation (`variables.tf:16`) are unchanged and still need the user's decision, so this stays open.
 
 ### F-19 [P3] unverified - Subnet and federated credential limits may fail only at apply
 

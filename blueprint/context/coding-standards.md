@@ -16,8 +16,10 @@
 
 - `required_version = ">= 1.17"` in every module. Do not use newer language
   features without raising it.
-- Pin providers to a major range: azurerm `">= 5.0, < 6.0"`, azapi
+- Pin providers to a major range: azurerm `">= 5.12, < 6.0"`, azapi
   `">= 2.0, < 3.0"`, azuread 3.x. Use azapi only for what azurerm can't do.
+- The azurerm floor is the version in `.azurerm-reviewed-version`, the one the
+  modules were checked against. Raise it together with that file.
 - Modules never configure providers; callers do.
 
 ## Module boundaries

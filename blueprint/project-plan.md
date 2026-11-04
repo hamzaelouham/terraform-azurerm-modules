@@ -31,8 +31,9 @@ Shipped (present in the repo):
 Next:
 
 - `aks` - AKS cluster, private by default, with a system node pool, Azure CNI Overlay,
-  Entra ID RBAC with local accounts off, and optional workload identity, ACR pull,
-  Container Insights and Key Vault secrets CSI; extra user node pools come after
+  Entra ID RBAC with local accounts off, Container Insights always on (a Log Analytics
+  workspace is required), and optional workload identity, ACR pull and Key Vault
+  secrets CSI; extra user node pools come after
 
 ## 4. Data - What are we storing?
 

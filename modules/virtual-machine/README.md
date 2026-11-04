@@ -4,7 +4,7 @@ One Linux or Windows VM (`vm_os_type`) with its NIC, optional public IP, OS disk
 and data disks. It deploys into an existing resource group and subnet, so pair it
 with the `resource-group` and `vnet` modules.
 
-Requires azurerm 5.x and azapi 2.x (azapi tags the OS disk, which azurerm can't).
+Requires azurerm 5.12 or later within 5.x, and azapi 2.x (azapi tags the OS disk, which azurerm can't).
 
 ```hcl
 module "vm" {
@@ -43,14 +43,14 @@ Notes:
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.17 |
 | <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) | >= 2.0, < 3.0 |
-| <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 5.0, < 6.0 |
+| <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 5.12, < 6.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_azapi"></a> [azapi](#provider\_azapi) | >= 2.0, < 3.0 |
-| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | >= 5.0, < 6.0 |
+| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | >= 5.12, < 6.0 |
 
 ## Modules
 
