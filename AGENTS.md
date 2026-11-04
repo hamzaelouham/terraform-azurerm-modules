@@ -339,6 +339,13 @@ Terraform module library; no dev server or build. Run from the repo root unless 
 - azurerm update check: `python3 scripts/check-registry.py [github|gitlab|azure]`
   (compares `.azurerm-reviewed-version` with the registry; with no tracker it only
   writes `azurerm-report.md`; runs monthly, and on Jenkins as an unstable build)
+- Upgrade agent tests: `pip install --require-hashes -r ai-agent/requirements-dev.txt && pytest ai-agent/tests`
+  (offline, with a scripted fake model; the agent itself only runs in `check-registry.yml`)
+- Upgrade agent lock files: edit `ai-agent/requirements.in` or `requirements-dev.in`, then
+  regenerate both from `ai-agent/` with the `uv pip compile --generate-hashes` command in
+  each lock file's header. Every package, including indirect ones, is pinned with hashes.
+- Agent patch gate: `sh scripts/check-bot-patch.sh <patch>` (passes only regular text
+  files under `modules/`, and applies nothing)
 
 CI and release run those same commands on four platforms. GitHub Actions and Azure
 Pipelines use `ci.yml` and `release.yml`; GitLab CI and Jenkins use one file each

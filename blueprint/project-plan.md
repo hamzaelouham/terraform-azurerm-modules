@@ -46,6 +46,8 @@ flow through sensitive variables and outputs and must never be committed.
 - Hosted on GitHub: `hamzaelouham/terraform-azurerm-modules`
 - CI tools: tflint 0.65.0, tflint-ruleset-azurerm 0.33.0, trivy 0.76.1, terraform-docs 0.24.0
 - CI: `terraform fmt`, init + validate, tflint, trivy (HIGH, CRITICAL), terraform-docs, then `terraform test` where a module has tests; the same pipeline (`sh scripts/verify.sh`) on four platforms (GitHub Actions, GitLab CI, Jenkins, Azure Pipelines); written, not yet run on any of them
+- azurerm update check: monthly `scripts/check-registry.py` on all four platforms, compared with `.azurerm-reviewed-version`
+- AI upgrade agent (GitHub only): custom Python agent in `ai-agent/`, built on LangGraph and LangChain, using any OpenAI-compatible model through an `OPENAI_API_KEY` repo secret, with step and token limits
 
 ## 6. Monetize - How will this make money?
 
@@ -61,7 +63,9 @@ defaults (no public IP, SSH keys only on Linux, purge protection on).
 
 Each module is versioned independently with git tags and consumed by a separate
 live-infra repo through `?ref=<module>/vX.Y.Z`; nothing is deployed from this repo
-itself. Changes are recorded in `CHANGELOG.md` (Keep a Changelog).
+itself. Changes are recorded in `CHANGELOG.md` (Keep a Changelog). The AI upgrade
+agent only opens draft PRs: a person reviews and merges them, and still creates
+every release tag.
 
 ## 9. Usage model and constraints (optional)
 

@@ -7,17 +7,129 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
-  check-azurerm:
+  check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    outputs:
+      reviewed: ${{ steps.registry.outputs.reviewed }}
+      new_version: ${{ steps.registry.outputs.new_version }}
+      major_bump: ${{ steps.registry.outputs.major_bump }}
+      pr_exists: ${{ steps.existing.outputs.pr_exists }}
     steps:
       - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.17.0
           terraform_wrapper: false
-      - run: python3 scripts/check-registry.py github
+      - id: registry
+        run: python3 scripts/check-registry.py github
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      # always(): a module that no longer validates fails the step above, but still needs the agent.
+      - id: existing
+        if: always() && steps.registry.outputs.new_version != ''
+        run: |
+          count=$(gh pr list --head "bot/azurerm-$VERSION" --state all --json number --jq length)
+          if [ "$count" = "0" ]; then echo "pr_exists=false"; else echo "pr_exists=true"; fi >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.registry.outputs.new_version }}
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.registry.outputs.new_version != ''
+        with:
+          name: azurerm-report
+          path: |
+            azurerm-report.md
+            azurerm-release-notes.md
+            azurerm-affected.json
+
+  # Needs the OPENAI_API_KEY secret and the AI_AGENT_MODEL repo variable, plus
+  # OPENAI_BASE_URL for anything other than OpenAI itself. The model must support tool
+  # calling and report token usage.
+  #
+  # Verify runs code from the modules, and a malicious release note could steer what the
+  # agent writes there. So this job holds nothing else: read-only token, no stored git
+  # credentials, and no write access. Use a dedicated key with a spending limit.
+  propose:
+    needs: check
+    if: always() && needs.check.outputs.new_version != '' && needs.check.outputs.pr_exists == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: azurerm-report
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.17.0
+          terraform_wrapper: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      # Every package, including indirect ones, is pinned with hashes.
+      - run: pip install --require-hashes -r ai-agent/requirements.txt
+      - run: sh scripts/install-tools.sh
+      # A failure doesn't stop the job: a new azurerm breaking the modules is what the agent is for.
+      - name: Verify before the agent
+        run: sh scripts/verify.sh > verify-baseline.txt 2>&1 || true
+        env:
+          # tflint --init reads GitHub releases; anonymous calls hit rate limits on shared runners.
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Run the agent
+        run: python ai-agent/main.py "$REVIEWED" "$VERSION" "$MAJOR_BUMP"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+          AI_AGENT_MODEL: ${{ vars.AI_AGENT_MODEL }}
+          REVIEWED: ${{ needs.check.outputs.reviewed }}
+          VERSION: ${{ needs.check.outputs.new_version }}
+          MAJOR_BUMP: ${{ needs.check.outputs.major_bump }}
+      # No token or key here: this result, not the agent's own account, goes in the PR.
+      # It runs where agent-written HCL already ran, so the PR's own CI is the one to trust.
+      - name: Verify after the agent
+        run: sh scripts/verify.sh > verify-final.txt 2>&1 || true
+      # --no-renames: the patch gate rejects renames, and a move is just a delete and a new file.
+      - name: Build the patch
+        run: |
+          git add -N .
+          git diff --binary --no-renames HEAD -- . > agent-patch.diff
+      - uses: actions/upload-artifact@v7
+        with:
+          name: agent-proposal
+          path: |
+            agent-patch.diff
+            pr-body.md
+            verify-baseline.txt
+            verify-final.txt
+
+  # No AI and no model key: this is the only job that can write to the repo.
+  publish:
+    needs: [check, propose]
+    # always(): the check can fail on a module that no longer validates, and the PR is still wanted.
+    if: always() && needs.propose.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # The ref that triggered the run, which the patch was built against: main on the
+      # schedule. A manual run from another branch also puts that branch's commits in the PR.
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: agent-proposal
+          path: ${{ runner.temp }}/agent-proposal
+      - run: sh scripts/publish-bot-pr.sh "$VERSION" "$RUNNER_TEMP/agent-proposal"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.new_version }}
