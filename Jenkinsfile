@@ -109,7 +109,7 @@ pipeline {
       }
       steps {
         sh 'sh scripts/install-tools.sh'
-        sh 'sh scripts/trivy-scan.sh LOW'
+        sh 'sh scripts/trivy-scan.sh HIGH'
       }
     }
   }

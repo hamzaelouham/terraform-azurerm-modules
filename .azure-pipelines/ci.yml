@@ -41,5 +41,5 @@ jobs:
     steps:
       - script: sh scripts/install-tools.sh
         displayName: Install CI tools
-      - script: sh scripts/trivy-scan.sh LOW
+      - script: sh scripts/trivy-scan.sh HIGH
         displayName: Weekly scan

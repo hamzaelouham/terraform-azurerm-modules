@@ -333,7 +333,7 @@ Terraform module library; no dev server or build. Run from the repo root unless 
   terraform-docs and test for every module; reports all failures at the end; needs
   network access)
 - Trivy at a severity and above: `sh scripts/trivy-scan.sh <LOW|MEDIUM|HIGH|CRITICAL> [module]`
-  (the weekly schedule runs `LOW`; before tagging, run `MEDIUM`)
+  (the weekly schedule runs `HIGH`; before tagging, run `MEDIUM`)
 - Release check: `RELEASE_TAG=<module>/vX.Y.Z sh scripts/release-check.sh` (needs the
   tag to exist; pipelines and agents never create, move or delete tags)
 - azurerm update check: `python3 scripts/check-registry.py [github|gitlab|azure]`

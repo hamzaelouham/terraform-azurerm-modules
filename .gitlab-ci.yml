@@ -27,7 +27,7 @@ weekly-scan:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   script:
     - sh scripts/install-tools.sh
-    - sh scripts/trivy-scan.sh LOW
+    - sh scripts/trivy-scan.sh HIGH
 
 # Needs a monthly pipeline schedule on main with the variable SCHEDULED_JOB=check-registry,
 # and a masked GITLAB_TOKEN variable: a project access token with the api scope, because

@@ -122,13 +122,15 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-  s(["Monday schedule"]) --> t["install-tools.sh"] --> l["trivy-scan.sh LOW"]
+  s(["Monday schedule"]) --> t["install-tools.sh"] --> l["trivy-scan.sh HIGH"]
   l -- "No findings." --> ok["green"]
-  l -- "Findings in: modules/x" --> red["red run: fix it, or record a<br/>reviewed MEDIUM/LOW acceptance"]
+  l -- "Findings in: modules/x" --> red["red run: fix it;<br/>HIGH and CRITICAL are never ignored"]
 ```
 
-A pull request is checked at HIGH and above. This scan uses the latest Trivy rules at
-LOW and above, so it catches new rules that arrive between changes.
+Verify checks every pull request at HIGH and above. This scan repeats that check
+each week with the latest Trivy rules, so a new HIGH or CRITICAL rule shows up
+between changes. MEDIUM is checked before each release by `release-check.sh`; no
+automatic job checks LOW.
 
 ## Use case 4: releasing a module
 
@@ -213,7 +215,7 @@ the patch. A person reviews the draft PR and decides whether to merge it.
 | `install-tools.sh` | `sh scripts/install-tools.sh` | Downloads pinned tflint, trivy and terraform-docs into `.tools/bin`. POSIX sh and wget only, so it runs in the `hashicorp/terraform` image | A download fails | Developers; Verify, weekly scan, release and agent jobs on all platforms |
 | `install-terraform.sh` | `sh scripts/install-terraform.sh 1.17.0` | Downloads one Terraform version into `.tools/bin`, for jobs with python3 but no Terraform | A download fails | Monthly check on GitLab, Azure Pipelines and Jenkins |
 | `verify.sh` | `sh scripts/verify.sh [module]` | For each module: `fmt`, `init`, `validate`, `tflint`, Trivy HIGH+, terraform-docs check, `terraform test`. With a module name, checks only that one and skips Trivy | Any check fails; all failures are listed at the end | Developers; every PR and push to main; `release-check.sh`; the agent job, before and after the agent |
-| `trivy-scan.sh` | `sh scripts/trivy-scan.sh <LOW\|MEDIUM\|HIGH\|CRITICAL> [module]` | Trivy at that severity and above, using `.trivyignore` | Any finding at or above the severity | Weekly scan (`LOW`); `release-check.sh` (`MEDIUM`); developers before tagging |
+| `trivy-scan.sh` | `sh scripts/trivy-scan.sh <LOW\|MEDIUM\|HIGH\|CRITICAL> [module]` | Trivy at that severity and above, using `.trivyignore` | Any finding at or above the severity | Weekly scan (`HIGH`); `release-check.sh` (`MEDIUM`); developers before tagging |
 | `release-check.sh` | `RELEASE_TAG=aks/v1.0.0 sh scripts/release-check.sh` | Checks the tag format, that the module exists and that the tag is on main, runs `verify.sh` and `trivy-scan.sh MEDIUM` for that module, then writes `release-notes.md` | Bad tag, missing module, tag not on main, or a failing check | Release pipeline on a pushed `*/v*` tag |
 | `check-registry.py` | `python3 scripts/check-registry.py [github\|gitlab\|azure]` | Compares `.azurerm-reviewed-version` with the registry, writes `azurerm-report.md`, release notes and `azurerm-affected.json`, validates every module, and opens, updates or closes one `azurerm-update` issue | Network or API error, or a module no longer validates | Monthly check on all four platforms |
 | `check-bot-patch.sh` | `sh scripts/check-bot-patch.sh <patch>` | Gate on the agent's patch: only regular text files under `modules/`; no symlinks, binaries, renames, mode changes or hidden paths. Never applies the patch. An empty patch passes | The patch breaks any of those rules or git can't read it | `publish-bot-pr.sh`; developers testing a patch |
