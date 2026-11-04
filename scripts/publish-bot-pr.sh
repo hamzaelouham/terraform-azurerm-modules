@@ -49,12 +49,15 @@ git add modules .azurerm-reviewed-version
 git -c user.name='github-actions[bot]' \
   -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
   commit -q -m "chore: review azurerm $version"
-git push origin "$branch"
+# --force: this only runs when no PR exists for the branch, so an existing branch is left
+# over from a run whose PR creation failed. Replacing it lets this run retry the PR.
+git push --force origin "$branch"
 
 body=$(mktemp)
 trap 'rm -f "$body"' EXIT
 {
-  head -c 60000 "$input/pr-body.md"
+  # Escape before cutting: each @ becomes 5 characters, so the cut must come after.
+  sed 's/@/\&#64;/g' "$input/pr-body.md" | head -c 60000
   printf '\n\n## Verify, run without the agent\n\nFrom the job that ran the agent, so it is informational only. The CI checks on this PR are the result to trust.\n\n### Before the agent\n\n```text\n'
   verify_summary "$input/verify-baseline.txt"
   printf '```\n\n### After the agent\n\n```text\n'

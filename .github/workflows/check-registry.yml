@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+# One run at a time, queued rather than cancelled: a second run starts only after the first
+# has opened its PR, so its check sees that PR and publish never force-pushes onto it.
+concurrency:
+  group: check-registry
+  cancel-in-progress: false
+
 jobs:
   check:
     runs-on: ubuntu-latest
