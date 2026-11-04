@@ -43,6 +43,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`sa_containers`), file shares (`sa_file_shares`) and an optional blob private
   endpoint (`sa_private_endpoint`) with registration in your own private DNS zone.
   Deploys into an existing resource group. Requires azurerm 5.x.
+- `aks` module: AKS cluster with a system node pool, private by default
+  (`aks_private_cluster_enabled`; a public API requires
+  `aks_api_authorized_ip_ranges`), Entra ID with Azure RBAC and local accounts off,
+  and Azure CNI Overlay with Cilium. Optional workload identity
+  (`aks_workload_identity_enabled`), Container Insights
+  (`aks_log_analytics_workspace_id`), Key Vault secrets CSI driver
+  (`aks_key_vault_secrets_provider`) and AcrPull for the kubelet identity
+  (`aks_acr_pull`). Deploys into an existing resource group and subnet. Requires
+  azurerm 5.12 or later within 5.x.
 
 ### Changed
 

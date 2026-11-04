@@ -1,6 +1,6 @@
 # terraform-azurerm-modules - Project Overview
 
-<!-- blueprint:source-hash aaa03310e03fcba1be91a7600105afb44199160deeb2b2cfdb0a56f55ee83aac -->
+<!-- blueprint:source-hash 8315bb715d18b5ddb44ad941a99a7bd62585b82549784192b2cd5071a8b6ae71 -->
 
 > A public library of reusable, versioned Terraform modules for Azure.
 
@@ -35,10 +35,10 @@ Next: `aks`.
 6. [x] **storage-account** - storage account with secure defaults, plus:
    - [x] 6a. **Storage account core** - optional network rules and blob data protection, blob containers, file shares.
    - [x] 6b. **Storage account private endpoint** - optional blob private endpoint into a vnet subnet.
-7. [ ] **aks** - planned; `modules/aks` exists but is empty.
+7. [ ] **aks** - fill the empty `modules/aks`:
+   - [ ] 7a. **AKS core cluster** - private by default, system node pool, Azure CNI Overlay, Entra ID RBAC with local accounts off; optional workload identity, ACR pull, Container Insights, Key Vault secrets CSI.
+   - [ ] 7b. **AKS user node pools** - optional extra user node pools.
 8. [ ] **AI azurerm upgrade agent** - when the monthly check finds a new azurerm version, propose module changes in a draft PR for human review.
-
-> TODO: the scope of `aks`.
 
 ## Data model
 
@@ -53,13 +53,15 @@ modules must follow them.
 
 | From | Output | Into | Input |
 |---|---|---|---|
-| resource-group | `name` | vnet, key-vault, virtual-machine, storage-account | `resource_group_name` |
-| resource-group | `location` | vnet, key-vault, virtual-machine, storage-account | `location` |
+| resource-group | `name` | vnet, key-vault, virtual-machine, storage-account, aks | `resource_group_name` |
+| resource-group | `location` | vnet, key-vault, virtual-machine, storage-account, aks | `location` |
 | vnet | `subnet_ids["<name>"]` | virtual-machine | `subnet_id` |
 | vnet | `subnet_ids["<name>"]` | storage-account | `sa_network_rules.virtual_network_subnet_ids`, `sa_private_endpoint.subnet_id` |
 | service-principal | `object_id` | role assignments, key-vault `kv_access_policies` | principal / object ID |
 | virtual-machine | `identity_principal_id` (null when no system identity) | role assignments | `principal_id` |
 | storage-account | `sa_id` | role assignments | scope |
+| vnet | `subnet_ids["<name>"]` | aks | `subnet_id` |
+| aks | `aks_kubelet_identity_object_id`, `aks_identity_principal_id` (null with user-assigned) | role assignments | `principal_id` |
 
 ### Module interface rules
 
@@ -103,7 +105,6 @@ still creates every release tag.
 
 > Resolve these in the plans, then re-run /overview.
 
-- **`aks` has no scope.** Build-plan item 7 is a bare title, so `/feature` will need its contents defined.
 - **`service-principal` isn't in the module list you supplied.** It's shipped and stays listed here; confirm it stays in the library.
 - **Release pipeline is unplanned.** Modules are released by git tag, but neither plan says how tags are created or what runs on them.
 - **CI has no build-plan item.** The project plan names the pipeline, but nothing on the build plan tracks it.

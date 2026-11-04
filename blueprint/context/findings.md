@@ -160,3 +160,43 @@ Re-examined 2026-11-04 by /audit independent (fresh subagent, target 335a884): `
 **Why it matters:** The concurrency group in `check-registry.yml:13-15` stops overlapping runs, but "Re-run failed jobs" on an earlier run whose `gh pr create` failed re-runs only `publish` and reuses that run's old `check` outputs, including `pr_exists=false`. If a newer run (for example a dispatch after turning the PR setting on) has already opened the PR, the re-run force-pushes the older proposal onto it, then fails at `gh pr create`. The PR then shows the old diff under the newer description. The patch gate and the PR's own CI still apply, so this is a mismatch, not a privilege gain, and it needs a person to re-run a stale job after a newer run succeeded (GitHub allows re-runs for 30 days). Not reproduced against GitHub; it rests on GitHub reusing successful jobs' outputs on a partial re-run.
 **Suggested fix:** If it matters, in `publish-bot-pr.sh` recount PRs with `gh pr list --head "$branch" --state all --json number --jq length` just before the push and stop when it isn't `0`. No current requirement is lost. Otherwise accept it: use "Re-run all jobs", not "Re-run failed jobs", on an old run.
 **Resolution:**
+
+### F-43 [P3] open - A service_cidr wider than /12 passes plan though Azure rejects it
+
+**File:** modules/aks/variables.tf:199
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: quality)
+**Why it matters:** The spec's goal is to fail at plan time on inputs Azure would reject. The azurerm 5.12.0 docs say the service address CIDR must be smaller than /12, but the validation only checks syntax: `aks_network = { service_cidr = "10.0.0.0/8", dns_service_ip = "10.0.0.10" }` plans cleanly (scratch probe), so it fails only at apply.
+**Suggested fix:** Add `tonumber(split("/", service_cidr)[1]) >= 12` (guarded with `coalesce`) to the CIDR validation, name the limit in the error message, and add a rejecting test. No current requirement is lost.
+**Resolution:**
+
+### F-44 [P3] unverified - outbound_type managedNATGateway is offered though the cluster always uses a caller's subnet
+
+**File:** modules/aks/variables.tf:212
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: quality)
+**Why it matters:** The module always places nodes in a caller-supplied subnet (`subnet_id` is required). AKS documents the managed NAT gateway outbound type for AKS-managed vnets and `userAssignedNATGateway` for your own vnet, so `managedNATGateway` likely fails only at apply. It plans cleanly (scratch probe). Missing validation: Azure docs or a live plan confirming the rejection for a custom subnet.
+**Suggested fix:** If confirmed, drop `managedNATGateway` from the allowed list and the description. No current requirement is lost.
+**Resolution:**
+
+### F-45 [P3] unverified - A full patch aks_kubernetes_version with the default patch channel may drift after an auto-upgrade
+
+**File:** modules/aks/variables.tf:48
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: quality)
+**Why it matters:** The description invites `"1.33.2"`, and the default `aks_automatic_upgrade_channel` is `patch`. After AKS upgrades the cluster to a newer patch, a later plan may try to set the version back to `1.33.2`, which AKS refuses as a downgrade. A minor alias such as `"1.33"` avoids this. Both plan offline (probe); the drift needs a live cluster to confirm.
+**Suggested fix:** If confirmed, say in the description to use `major.minor` while an upgrade channel is on, or add a precondition rejecting a patch version unless the channel is `none`. No current requirement is lost beyond pinning an exact patch with auto-upgrade on.
+**Resolution:**
+
+### F-46 [P3] open - Trivy MEDIUM AZU-0040 fires on the module defaults
+
+**File:** modules/aks/main.tf:13
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: security)
+**Why it matters:** `sh scripts/trivy-scan.sh MEDIUM aks` fails with AZU-0040 (no `oms_agent`) because Container Insights is off by default. The spec and the owner's release rule require the MEDIUM scan to pass, or the user to accept it, before tagging `aks/v1.0.0`. Verify (HIGH and above) passes, so this does not block the feature.
+**Suggested fix:** Before tagging, either make the user's acceptance explicit (record the reason here as `accepted`), or require a workspace ID by default. Do not add a Trivy ignore without that decision.
+**Resolution:**
+
+### F-47 [P3] open - The "none" upgrade-channel mapping and a malformed identity ID have no test
+
+**File:** modules/aks/tests/aks.tftest.hcl:433
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: tests)
+**Why it matters:** main.tf:76 maps `aks_automatic_upgrade_channel = "none"` to `null`, which is derived logic the testing standard says needs a test, and no run sets `"none"`. The `aks_identity_ids` validation also checks the ID format, but only the two-identity case is tested, so a broken format regex would go unnoticed.
+**Suggested fix:** Add a plan run with `"none"` asserting `automatic_upgrade_channel == null`, and a rejecting run with one malformed identity ID.
+**Resolution:**
