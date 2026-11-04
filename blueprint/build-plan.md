@@ -27,3 +27,4 @@ Seeded by `/adopt`. Checked items already exist in the repo.
   - [x] 6a. **Storage account core** - account with secure defaults, network rules, blob containers, file shares
   - [x] 6b. **Storage account private endpoint** - optional blob private endpoint into a vnet subnet
 - [ ] 7. **aks module**
+- [ ] 8. **AI azurerm upgrade agent** - when the monthly check finds a new azurerm version, propose module changes in a draft PR for human review

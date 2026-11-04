@@ -1,6 +1,6 @@
 # terraform-azurerm-modules - Project Overview
 
-<!-- blueprint:source-hash 446db3175a1c15bca577497cbc06e0be4211617ad04aa373f805b93ca85fd17b -->
+<!-- blueprint:source-hash aaa03310e03fcba1be91a7600105afb44199160deeb2b2cfdb0a56f55ee83aac -->
 
 > A public library of reusable, versioned Terraform modules for Azure.
 
@@ -36,6 +36,7 @@ Next: `aks`.
    - [x] 6a. **Storage account core** - optional network rules and blob data protection, blob containers, file shares.
    - [x] 6b. **Storage account private endpoint** - optional blob private endpoint into a vnet subnet.
 7. [ ] **aks** - planned; `modules/aks` exists but is empty.
+8. [ ] **AI azurerm upgrade agent** - when the monthly check finds a new azurerm version, propose module changes in a draft PR for human review.
 
 > TODO: the scope of `aks`.
 
@@ -77,6 +78,8 @@ modules must follow them.
 - **GitHub** - `hamzaelouham/terraform-azurerm-modules`.
 - **CI tools** - tflint 0.65.0, tflint-ruleset-azurerm 0.33.0, trivy 0.76.1, terraform-docs 0.24.0.
 - **CI on four platforms** (GitHub Actions, GitLab CI, Jenkins, Azure Pipelines) - one pipeline, `sh scripts/verify.sh`: `terraform fmt`, init + validate, tflint, trivy (HIGH, CRITICAL), terraform-docs, then `terraform test` where a module has tests. Written, not yet run on any of them.
+- **azurerm update check** - monthly `scripts/check-registry.py` on all four platforms, compared with `.azurerm-reviewed-version`.
+- **AI upgrade agent (GitHub only)** - custom Python agent in `ai-agent/`, built on LangGraph and LangChain, using any OpenAI-compatible model through an `OPENAI_API_KEY` repo secret, with step and token limits.
 
 ## Monetization
 
@@ -93,6 +96,8 @@ defaults (no public IP, SSH keys only on Linux, purge protection on).
 Each module is versioned independently with git tags and consumed by a separate
 live-infra repo through `?ref=<module>/vX.Y.Z`. Nothing deploys from this repo.
 Changes are recorded in `CHANGELOG.md` (Keep a Changelog, `## [Unreleased]`).
+The AI upgrade agent only opens draft PRs: a person reviews and merges them, and
+still creates every release tag.
 
 ## Open questions
 

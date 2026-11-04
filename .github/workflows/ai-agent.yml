@@ -1,0 +1,26 @@
+name: ai-agent
+
+on:
+  pull_request:
+    paths:
+      - "ai-agent/**"
+      - ".github/workflows/ai-agent.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ai-agent/**"
+      - ".github/workflows/ai-agent.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install --require-hashes -r ai-agent/requirements-dev.txt
+      - run: python -m pytest ai-agent/tests

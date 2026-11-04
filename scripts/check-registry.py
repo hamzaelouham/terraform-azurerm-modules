@@ -23,7 +23,11 @@ import urllib.request
 LABEL = "azurerm-update"
 REGISTRY_URL = "https://registry.terraform.io/v1/providers/hashicorp/azurerm"
 RELEASES_URL = "https://api.github.com/repos/hashicorp/terraform-provider-azurerm/releases"
+GUIDE_URL = ("https://raw.githubusercontent.com/hashicorp/terraform-provider-azurerm/v{latest}"
+             "/website/docs/guides/{major}.0-upgrade-guide.html.markdown")
 REPORT = "azurerm-report.md"
+NOTES = "azurerm-release-notes.md"
+AFFECTED = "azurerm-affected.json"
 
 
 def call(method, url, headers=None, body=None, content_type="application/json"):
@@ -151,14 +155,65 @@ def fetch_releases(reviewed):
         page += 1
 
 
+def write_release_notes(reviewed_text, latest_text, releases):
+    """Saves the notes and any upgrade guides for the agent. Returns the major versions with no guide."""
+    reviewed, latest = ver(reviewed_text), ver(latest_text)
+    new = sorted((r for r in releases if reviewed < ver(r["tag_name"]) <= latest), key=lambda r: ver(r["tag_name"]))
+    parts = [f"# {r['tag_name']}\n\n{r['body'] or ''}" for r in new]
+    missing = []
+    for major in range(reviewed[0] + 1, latest[0] + 1):
+        url = GUIDE_URL.format(latest=latest_text, major=major)
+        try:
+            with urllib.request.urlopen(url, timeout=60) as response:
+                parts.append(f"# Upgrade guide for azurerm {major}.0\n\n{response.read().decode()}")
+        except urllib.error.URLError:
+            missing.append(major)
+    with open(NOTES, "w") as f:
+        f.write("\n\n".join(parts) + "\n")
+    return missing
+
+
+def write_outputs(reviewed_text, latest_text, major_bump):
+    """Tells later GitHub Actions jobs that the agent should run."""
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+            f.write(f"reviewed={reviewed_text}\nnew_version={latest_text}\nmajor_bump={str(major_bump).lower()}\n")
+
+
+def module_resources():
+    """The azurerm resource and data source types each module uses."""
+    found = {}
+    for module in sorted(glob.glob("modules/*/")):
+        name = os.path.basename(module.rstrip("/"))
+        found[name] = set()
+        for f in glob.glob(f"{module}**/*.tf", recursive=True):
+            with open(f) as source:
+                found[name] |= set(re.findall(r'^\s*(?:resource|data)\s+"(azurerm_[a-z0-9_]+)"', source.read(), re.M))
+    return found
+
+
+def write_affected(resources, ours, statuses, major_bump):
+    """Which modules the agent looks at, so each of its sessions sees one module and only its changes.
+
+    A module is affected when a release note names one of its resources, when it no longer
+    validates, or, on a new major version, when it uses azurerm at all.
+    """
+    affected = {}
+    for name, types in resources.items():
+        changes = [line for t in sorted(types) for line in ours.get(t, [])]
+        validates = statuses.get(name, True)
+        if changes or not validates or (major_bump and types):
+            affected[name] = {"resources": sorted(types), "changes": changes, "validates": validates}
+    with open(AFFECTED, "w") as f:
+        json.dump({"major_bump": major_bump, "modules": affected}, f, indent=2)
+
+
 def build_report(reviewed_text, latest_text, releases):
+    """Returns the report, and the release-note lines that mention each resource type."""
     reviewed, latest = ver(reviewed_text), ver(latest_text)
 
     # Resource and data source types our modules use
-    used = set()
-    for f in glob.glob("modules/**/*.tf", recursive=True):
-        with open(f) as source:
-            used |= set(re.findall(r'^\s*(?:resource|data)\s+"(azurerm_[a-z0-9_]+)"', source.read(), re.M))
+    used = set().union(*module_resources().values())
 
     new = sorted((r for r in releases if reviewed < ver(r["tag_name"]) <= latest), key=lambda r: ver(r["tag_name"]))
 
@@ -201,14 +256,15 @@ def build_report(reviewed_text, latest_text, releases):
     out += ["", "### When reviewed",
             f"Update `.azurerm-reviewed-version` to `{latest_text}` in a change request. "
             "The next run closes this issue."]
-    return "\n".join(out)[:60000]  # the GitHub issue body limit is 65,536
+    return "\n".join(out)[:60000], ours  # the GitHub issue body limit is 65,536
 
 
 def validate_modules():
-    """Returns the report's table, and whether every module validated."""
+    """Returns the report's table, whether every module validated, and each module's result."""
     lines = ["", "### Validation with the newest allowed azurerm", "",
              "| Module | azurerm used | validate |", "|---|---|---|"]
     ok = True
+    statuses = {}
     cache = os.path.abspath(".tools/plugin-cache")
     os.makedirs(cache, exist_ok=True)
     for module in sorted(glob.glob("modules/*/")):
@@ -225,17 +281,19 @@ def validate_modules():
             passed = (terraform("init", "-backend=false", "-upgrade", "-input=false").returncode == 0
                       and terraform("validate", "-no-color").returncode == 0)
             ok = ok and passed
+            statuses[os.path.basename(module.rstrip("/"))] = passed
             selections = json.loads(terraform("version", "-json").stdout or "{}").get("provider_selections", {})
             used = selections.get("registry.terraform.io/hashicorp/azurerm", "-")
         lines.append(f"| {os.path.basename(module.rstrip('/'))} | {used} | {'pass' if passed else 'FAIL'} |")
-    return "\n".join(lines), ok
+    return "\n".join(lines), ok, statuses
 
 
 def main():
     os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
     os.environ["PATH"] = f"{os.path.abspath('.tools/bin')}{os.pathsep}{os.environ['PATH']}"
-    if os.path.exists(REPORT):
-        os.remove(REPORT)
+    for stale in (REPORT, NOTES, AFFECTED):
+        if os.path.exists(stale):
+            os.remove(stale)
 
     names = sys.argv[1:]
     if len(names) > 1 or (names and names[0] not in TRACKERS):
@@ -256,8 +314,11 @@ def main():
             print(f"Closed {item}.")
         return
 
-    report = build_report(reviewed, latest, fetch_releases(ver(reviewed)))
-    table, valid = validate_modules()
+    releases = fetch_releases(ver(reviewed))
+    missing_guides = write_release_notes(reviewed, latest, releases)
+    report, ours = build_report(reviewed, latest, releases)
+    table, valid, statuses = validate_modules()
+    write_affected(module_resources(), ours, statuses, ver(latest)[0] > ver(reviewed)[0])
     report += "\n" + table + "\n"
     with open(REPORT, "w") as f:
         f.write(report)
@@ -272,6 +333,12 @@ def main():
         else:
             tracker.create(title, report)
             print("Opened an issue.")
+
+    # Written after publishing and before any exit: a module that no longer validates
+    # is exactly what the agent is for, but it never runs on a major without its guide.
+    if missing_guides:
+        sys.exit(f"No upgrade guide found for azurerm {missing_guides}; the agent won't run.")
+    write_outputs(reviewed, latest, ver(latest)[0] > ver(reviewed)[0])
 
     if not valid:
         sys.exit("A module no longer validates; see the table above.")
