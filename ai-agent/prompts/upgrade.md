@@ -22,8 +22,8 @@ make those changes. Other modules get their own sessions.
 
 # Section of the pull request description
 
-Write plain Markdown for this module only. The heading and summary are added for you.
-Use these parts:
+Write plain Markdown for this module only. The module heading and summary are added for
+you. Start each of these parts with a `###` heading:
 
 - **Changes** - every change, its file, and why this azurerm version requires it. Link
   the release note it comes from. If nothing needed changing, say so and why.

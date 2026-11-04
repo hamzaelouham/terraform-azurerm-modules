@@ -158,6 +158,13 @@ def test_injected_notes_cant_get_past_the_tools(repo):
     assert model.seen[1][-1].content.startswith("Refused")
 
 
+def test_section_headings_sit_under_the_module_heading(repo):
+    section = "## Changes\nNone.\n# Version bump\n#### Detail\n```hcl\n## not a heading\n```\n#tag"
+    assert run(repo, tool_call("write_pr_section", text=section)) == 0
+    assert ("## vnet\n\n### Changes\nNone.\n### Version bump\n#### Detail\n```hcl\n## not a heading\n```\n#tag"
+            in body(repo))
+
+
 def test_prompts_are_filled_in(repo):
     info = {"resources": ["azurerm_vnet"], "changes": ["note"], "validates": True}
     system, task = main.build_messages("5.11.0", "5.12.0", False, "vnet", info)

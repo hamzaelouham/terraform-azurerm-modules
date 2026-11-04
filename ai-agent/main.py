@@ -39,6 +39,18 @@ def build_messages(reviewed, latest, major_bump, module, info):
     return [SystemMessage((HERE / "instructions" / "system.md").read_text()), HumanMessage(prompt)]
 
 
+def nest_headings(section):
+    """Moves `#` and `##` headings down to `###`, outside code blocks, so they sit under the module's heading."""
+    lines, in_code = [], False
+    for line in section.splitlines():
+        if line.lstrip().startswith(("```", "~~~")):
+            in_code = not in_code
+        elif not in_code:
+            line = re.sub(r"^ {0,3}#{1,2}(?=\s)", "###", line)
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def summary(reviewed, latest, affected, every_module):
     others = sorted(set(every_module) - set(affected))
     lines = [f"## Summary\n\nazurerm {reviewed} → {latest}."]
@@ -75,7 +87,7 @@ def run(reviewed, latest, major_bump, model=None, root=ROOT):
             if not toolbox.finished:
                 raise RuntimeError(f"The {module} session stopped without writing its section.")
             used += result["tokens"]
-            sections.append(f"## {module}\n\n{toolbox.section.strip()}")
+            sections.append(f"## {module}\n\n{nest_headings(toolbox.section.strip())}")
             print(f"{module}: done after {toolbox.verify_runs} Verify runs, {result['tokens']} tokens.")
         body.write_text("\n\n".join([summary(reviewed, latest, list(affected), every_module)] + sections) + "\n")
     except Exception as error:  # any failure means no PR, and the next monthly run tries again

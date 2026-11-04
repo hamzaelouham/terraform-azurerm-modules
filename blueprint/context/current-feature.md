@@ -117,7 +117,7 @@ issue stays open.
   **Done when:** both lock files pin every package, including indirect ones, with
   hashes; a hash-checked install on Python 3.13 succeeds, and the tests pass on it; and
   an install from a file without hashes fails under `--require-hashes`.
-- [ ] 9. **Setup and end-to-end run.** With explicit approval, turn on "Allow GitHub
+- [x] 9. **Setup and end-to-end run.** With explicit approval, turn on "Allow GitHub
   Actions to create and approve pull requests" (currently off), add the
   `OPENAI_API_KEY` secret and the `OPENAI_BASE_URL` and `AI_AGENT_MODEL` repo
   variables, push this branch with `.azurerm-reviewed-version` temporarily set to an
@@ -128,6 +128,15 @@ issue stays open.
   approval click, and a second run makes no second PR. If approval or the secret
   isn't given, this stays recorded as not run, and the feature can't be called
   verified end to end.
+  **Result (2026-11-04, `gpt-6-luna`):** run 41849328529 on the branch, 5.0.0 → 5.12.0,
+  reviewed four modules in 163,976 tokens and opened draft PR #3. Its head commit
+  changed only `.azurerm-reviewed-version`: the agent found no module change needed,
+  and the claims checked against the modules held. Verify and ai-agent waited for one
+  approval click. Run 41850180681 skipped propose and publish, so no second PR. The
+  diff against `main` also showed this feature, only because the test ran from the
+  feature branch. One fix followed: a section used `##` headings, so the prompt now
+  asks for `###` and `main.py` moves `#`/`##` headings to `###`. PR #3, issue #2 and
+  `bot/azurerm-5.12.0` were removed, and the version file was restored in `06f91e8`.
 
 ## Files / areas
 
