@@ -23,9 +23,10 @@ module "aks" {
 
   aks_admin_group_object_ids = ["00000000-0000-0000-0000-000000000000"] # an Entra ID group
 
+  aks_log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id # Container Insights
+
   # Optional integrations, each off by default:
   aks_workload_identity_enabled  = true
-  aks_log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id
   aks_key_vault_secrets_provider = {}
   aks_acr_pull                   = { registry_id = azurerm_container_registry.acr.id }
 }
@@ -53,6 +54,10 @@ Defaults:
 - **Upgrades:** Kubernetes patch versions automatically (`patch`), and node images
   (`NodeImage`).
 - **Free tier.** Use `aks_sku_tier = "Standard"` for the uptime SLA.
+- **Container Insights on.** Logs and metrics go to the Log Analytics workspace in
+  `aks_log_analytics_workspace_id`, which is required, using managed identity auth.
+  The workspace bills for the data it ingests, so size its retention and daily cap
+  for your environment.
 
 ## User node pools
 
@@ -144,7 +149,7 @@ No modules.
 | <a name="input_aks_identity_ids"></a> [aks\_identity\_ids](#input\_aks\_identity\_ids) | User-assigned identity for the cluster's control plane, as a one-item list of its ID. Empty uses a system-assigned identity. | `list(string)` | `[]` | no |
 | <a name="input_aks_key_vault_secrets_provider"></a> [aks\_key\_vault\_secrets\_provider](#input\_aks\_key\_vault\_secrets\_provider) | Set to turn on the Key Vault secrets store CSI driver with secret rotation, e.g. {} or { secret\_rotation\_interval = "5m" }. Interval default "2m". null leaves it off. | <pre>object({<br/>    secret_rotation_interval = optional(string, "2m")<br/>  })</pre> | `null` | no |
 | <a name="input_aks_kubernetes_version"></a> [aks\_kubernetes\_version](#input\_aks\_kubernetes\_version) | Kubernetes version, e.g. "1.33" or "1.33.2". null uses AKS's default version at creation; afterwards aks\_automatic\_upgrade\_channel keeps it current. | `string` | `null` | no |
-| <a name="input_aks_log_analytics_workspace_id"></a> [aks\_log\_analytics\_workspace\_id](#input\_aks\_log\_analytics\_workspace\_id) | ID of a Log Analytics workspace. Set to turn on Container Insights with managed identity auth; null leaves monitoring off. | `string` | `null` | no |
+| <a name="input_aks_log_analytics_workspace_id"></a> [aks\_log\_analytics\_workspace\_id](#input\_aks\_log\_analytics\_workspace\_id) | ID of the Log Analytics workspace for Container Insights, which is always on and uses managed identity auth. The workspace bills for the data it ingests. | `string` | n/a | yes |
 | <a name="input_aks_name"></a> [aks\_name](#input\_aks\_name) | Name of the AKS cluster. 1-63 characters: letters, digits, '-' and '\_'; must start and end with a letter or digit. | `string` | n/a | yes |
 | <a name="input_aks_network"></a> [aks\_network](#input\_aks\_network) | Network settings for Azure CNI Overlay with Cilium. null fields use Azure's defaults.<br/>- pod\_cidr: private range for pod IPs, e.g. "192.168.0.0/16". Must not overlap the vnet.<br/>- service\_cidr, dns\_service\_ip: set both or neither, e.g. "172.16.0.0/16" and "172.16.0.10". Must not overlap the vnet.<br/>- outbound\_type: "loadBalancer" (default), "userDefinedRouting", "managedNATGateway" or "userAssignedNATGateway". | <pre>object({<br/>    pod_cidr       = optional(string)<br/>    service_cidr   = optional(string)<br/>    dns_service_ip = optional(string)<br/>    outbound_type  = optional(string, "loadBalancer")<br/>  })</pre> | `{}` | no |
 | <a name="input_aks_node_os_upgrade_channel"></a> [aks\_node\_os\_upgrade\_channel](#input\_aks\_node\_os\_upgrade\_channel) | Node OS image upgrade channel: "NodeImage" (default), "SecurityPatch", "Unmanaged" or "None". | `string` | `"NodeImage"` | no |

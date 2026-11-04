@@ -95,12 +95,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
   oidc_issuer_enabled       = var.aks_workload_identity_enabled
   workload_identity_enabled = var.aks_workload_identity_enabled
 
-  dynamic "oms_agent" {
-    for_each = var.aks_log_analytics_workspace_id == null ? [] : [1]
-    content {
-      log_analytics_workspace_id      = var.aks_log_analytics_workspace_id
-      msi_auth_for_monitoring_enabled = true
-    }
+  oms_agent {
+    log_analytics_workspace_id      = var.aks_log_analytics_workspace_id
+    msi_auth_for_monitoring_enabled = true
   }
 
   dynamic "key_vault_secrets_provider" {

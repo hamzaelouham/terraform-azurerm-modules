@@ -185,14 +185,6 @@ Re-examined 2026-11-04 by /audit independent (fresh subagent, target 335a884): `
 **Suggested fix:** If confirmed, say in the description to use `major.minor` while an upgrade channel is on, or add a precondition rejecting a patch version unless the channel is `none`. No current requirement is lost beyond pinning an exact patch with auto-upgrade on.
 **Resolution:**
 
-### F-46 [P3] open - Trivy MEDIUM AZU-0040 fires on the module defaults
-
-**File:** modules/aks/main.tf:13
-**Found:** 2026-11-04 by /audit independent (scope: current; lens: security)
-**Why it matters:** `sh scripts/trivy-scan.sh MEDIUM aks` fails with AZU-0040 (no `oms_agent`) because Container Insights is off by default. The spec and the owner's release rule require the MEDIUM scan to pass, or the user to accept it, before tagging `aks/v1.0.0`. Verify (HIGH and above) passes, so this does not block the feature.
-**Suggested fix:** Before tagging, either make the user's acceptance explicit (record the reason here as `accepted`), or require a workspace ID by default. Do not add a Trivy ignore without that decision.
-**Resolution:**
-
 ### F-47 [P3] open - The "none" upgrade-channel mapping and a malformed identity ID have no test
 
 **File:** modules/aks/tests/aks.tftest.hcl:433
@@ -207,4 +199,20 @@ Re-examined 2026-11-04 by /audit independent (fresh subagent, target 335a884): `
 **Found:** 2026-11-04 by /audit independent (scope: current; lens: tests)
 **Why it matters:** The user-pool rotation precondition has four clauses. Only clause 2 (a pool named like the system pool's rotation name, `rejects_pool_named_like_a_rotation_name`) and clause 3 (two pools sharing a rotation name, `rejects_pools_sharing_a_rotation_name`) are tested. Clause 1 (a pool's rotation name equals another pool's name, e.g. pools `apps` and `appstmp`) and clause 4 (a user pool's rotation name equals the system pool's, e.g. system `sysnodepool` and user `sysnodepoo`) are reachable and each is the only clause that catches its case, yet deleting both from a scratch copy of the target left all 68 shipped tests passing. The testing standard requires a test for precondition logic, so a regression here would let a cluster plan that Azure later fails on during a pool rotation.
 **Suggested fix:** Add two `expect_failures` plan runs to `modules/aks/tests/aks.tftest.hcl`: pools `apps` and `appstmp` expecting `azurerm_kubernetes_cluster_node_pool.user["apps"]`, and system pool `sysnodepool` with user pool `sysnodepoo` expecting `azurerm_kubernetes_cluster_node_pool.user["sysnodepoo"]`. Both were confirmed to fail as expected against the current code.
+**Resolution:**
+
+### F-52 [P3] open - integrations_on repeats the workspace input and the Container Insights assert
+
+**File:** modules/aks/tests/aks.tftest.hcl:241
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: tests)
+**Why it matters:** The workspace ID is now in the file-level `variables` block, so `integrations_on` sets the same value again (line 241), and its `oms_agent` assert (lines 253-258) duplicates the one added to `defaults_are_secure`. The run no longer turns Container Insights on, so the copy suggests a toggle that no longer exists and is a second place to edit if the assertion changes.
+**Suggested fix:** Delete the `aks_log_analytics_workspace_id` line and the `oms_agent` assert from `integrations_on`. No current requirement is lost: `defaults_are_secure` keeps the same check.
+**Resolution:**
+
+### F-53 [P3] open - The project plan and overview still call Container Insights optional
+
+**File:** blueprint/project-plan.md:35
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: quality)
+**Why it matters:** After this fix Container Insights is always on and the workspace is required, but `blueprint/project-plan.md:35`, `blueprint/build-plan.md:30` and the derived `blueprint/context/project-overview.md:39` all list it as optional. The spec notes only the build-plan line. Later specs and reviews read these files as the source of truth.
+**Suggested fix:** The user updates the two plan lines (they own them), then `/overview` regenerates the overview. Mention all three at `/complete`. Not a code change.
 **Resolution:**

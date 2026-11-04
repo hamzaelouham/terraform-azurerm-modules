@@ -29,6 +29,8 @@ variables {
   subnet_id            = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/vnet-test/subnets/aks"
   aks_name             = "aks-test"
   aks_system_node_pool = { vm_size = "Standard_D4ds_v5" }
+
+  aks_log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.OperationalInsights/workspaces/law-test"
 }
 
 run "defaults_are_secure" {
@@ -90,13 +92,19 @@ run "defaults_are_secure" {
     condition = (
       !azurerm_kubernetes_cluster.aks.workload_identity_enabled &&
       !azurerm_kubernetes_cluster.aks.oidc_issuer_enabled &&
-      length(azurerm_kubernetes_cluster.aks.oms_agent) == 0 &&
       length(azurerm_kubernetes_cluster.aks.key_vault_secrets_provider) == 0 &&
       length(azurerm_role_assignment.acr_pull) == 0 &&
       length(azurerm_kubernetes_cluster_node_pool.user) == 0 &&
       !azurerm_kubernetes_cluster.aks.default_node_pool[0].only_critical_addons_enabled
     )
-    error_message = "Expected workload identity, Container Insights, the Key Vault CSI driver, ACR pull and user pools all off, and the system pool untainted, by default."
+    error_message = "Expected workload identity, the Key Vault CSI driver, ACR pull and user pools all off, and the system pool untainted, by default."
+  }
+  assert {
+    condition = (
+      azurerm_kubernetes_cluster.aks.oms_agent[0].log_analytics_workspace_id == var.aks_log_analytics_workspace_id &&
+      azurerm_kubernetes_cluster.aks.oms_agent[0].msi_auth_for_monitoring_enabled
+    )
+    error_message = "Expected Container Insights always on, on the given workspace with managed identity auth."
   }
 }
 

@@ -351,13 +351,13 @@ variable "aks_workload_identity_enabled" {
 }
 
 variable "aks_log_analytics_workspace_id" {
-  description = "ID of a Log Analytics workspace. Set to turn on Container Insights with managed identity auth; null leaves monitoring off."
+  description = "ID of the Log Analytics workspace for Container Insights, which is always on and uses managed identity auth. The workspace bills for the data it ingests."
   type        = string
-  default     = null
+  nullable    = false
 
   validation {
-    condition     = can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.OperationalInsights/workspaces/[^/]+$", coalesce(var.aks_log_analytics_workspace_id, "/subscriptions/x/resourceGroups/x/providers/Microsoft.OperationalInsights/workspaces/x")))
-    error_message = "aks_log_analytics_workspace_id must be a Log Analytics workspace ID: /subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name>, or null."
+    condition     = can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.OperationalInsights/workspaces/[^/]+$", var.aks_log_analytics_workspace_id))
+    error_message = "aks_log_analytics_workspace_id must be a Log Analytics workspace ID: /subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name>."
   }
 }
 
