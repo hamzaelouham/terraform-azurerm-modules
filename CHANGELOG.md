@@ -52,6 +52,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`aks_key_vault_secrets_provider`) and AcrPull for the kubelet identity
   (`aks_acr_pull`). Deploys into an existing resource group and subnet. Requires
   azurerm 5.12 or later within 5.x.
+- `aks` module: Linux user node pools (`aks_user_node_pools`), each autoscaling,
+  optionally in its own subnet of the cluster's vnet, and optionally Spot
+  (`spot`). The system pool can be reserved for system pods with
+  `aks_system_node_pool.only_critical_addons_enabled`.
 
 ### Changed
 

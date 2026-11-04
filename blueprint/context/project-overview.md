@@ -1,6 +1,6 @@
 # terraform-azurerm-modules - Project Overview
 
-<!-- blueprint:source-hash 8315bb715d18b5ddb44ad941a99a7bd62585b82549784192b2cd5071a8b6ae71 -->
+<!-- blueprint:source-hash 168c8c4613103283f534fee32d2b7eb9bad8553a6e705288cba39692c637717f -->
 
 > A public library of reusable, versioned Terraform modules for Azure.
 
@@ -37,7 +37,7 @@ Next: `aks`.
    - [x] 6b. **Storage account private endpoint** - optional blob private endpoint into a vnet subnet.
 7. [ ] **aks** - fill the empty `modules/aks`:
    - [ ] 7a. **AKS core cluster** - private by default, system node pool, Azure CNI Overlay, Entra ID RBAC with local accounts off; optional workload identity, ACR pull, Container Insights, Key Vault secrets CSI.
-   - [ ] 7b. **AKS user node pools** - optional extra user node pools.
+   - [ ] 7b. **AKS user node pools** - optional Linux user node pools, regular or Spot; opt-in to reserve the system pool for system pods.
 8. [ ] **AI azurerm upgrade agent** - when the monthly check finds a new azurerm version, propose module changes in a draft PR for human review.
 
 ## Data model

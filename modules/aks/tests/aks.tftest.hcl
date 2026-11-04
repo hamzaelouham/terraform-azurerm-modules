@@ -11,6 +11,11 @@ mock_provider "azurerm" {
       oidc_issuer_url = "https://westeurope.oic.prod-aks.azure.com/00000000-0000-0000-0000-000000000000/11111111-1111-1111-1111-111111111111/"
     }
   }
+  mock_resource "azurerm_kubernetes_cluster_node_pool" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.ContainerService/managedClusters/aks-test/agentPools/mock"
+    }
+  }
   mock_resource "azurerm_role_assignment" {
     defaults = {
       id = "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleAssignments/44444444-4444-4444-4444-444444444444"
@@ -87,9 +92,11 @@ run "defaults_are_secure" {
       !azurerm_kubernetes_cluster.aks.oidc_issuer_enabled &&
       length(azurerm_kubernetes_cluster.aks.oms_agent) == 0 &&
       length(azurerm_kubernetes_cluster.aks.key_vault_secrets_provider) == 0 &&
-      length(azurerm_role_assignment.acr_pull) == 0
+      length(azurerm_role_assignment.acr_pull) == 0 &&
+      length(azurerm_kubernetes_cluster_node_pool.user) == 0 &&
+      !azurerm_kubernetes_cluster.aks.default_node_pool[0].only_critical_addons_enabled
     )
-    error_message = "Expected workload identity, Container Insights, the Key Vault CSI driver and ACR pull all off by default."
+    error_message = "Expected workload identity, Container Insights, the Key Vault CSI driver, ACR pull and user pools all off, and the system pool untainted, by default."
   }
 }
 
@@ -550,4 +557,297 @@ run "rejects_fractional_min_count" {
     aks_system_node_pool = { vm_size = "Standard_D4ds_v5", min_count = 1.5 }
   }
   expect_failures = [var.aks_system_node_pool]
+}
+
+# User node pools (feature 7b).
+
+run "regular_user_pool" {
+  command = apply
+
+  variables {
+    aks_user_node_pools = {
+      apps = {
+        vm_size     = "Standard_D8ds_v5"
+        min_count   = 0
+        max_count   = 10
+        zones       = ["1", "2"]
+        os_sku      = "AzureLinux"
+        node_labels = { workload = "apps" }
+        node_taints = ["workload=apps:NoSchedule"]
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      azurerm_kubernetes_cluster_node_pool.user["apps"].kubernetes_cluster_id == azurerm_kubernetes_cluster.aks.id &&
+      azurerm_kubernetes_cluster_node_pool.user["apps"].vnet_subnet_id == var.subnet_id &&
+      azurerm_kubernetes_cluster_node_pool.user["apps"].mode == "User" &&
+      azurerm_kubernetes_cluster_node_pool.user["apps"].os_type == "Linux" &&
+      azurerm_kubernetes_cluster_node_pool.user["apps"].os_sku == "AzureLinux" &&
+      azurerm_kubernetes_cluster_node_pool.user["apps"].priority == "Regular"
+    )
+    error_message = "Expected a Linux User pool on the cluster, in the cluster subnet, at Regular priority."
+  }
+  assert {
+    condition = (
+      azurerm_kubernetes_cluster_node_pool.user["apps"].auto_scaling_enabled &&
+      azurerm_kubernetes_cluster_node_pool.user["apps"].min_count == 0 &&
+      azurerm_kubernetes_cluster_node_pool.user["apps"].max_count == 10 &&
+      azurerm_kubernetes_cluster_node_pool.user["apps"].temporary_name_for_rotation == "appstmp"
+    )
+    error_message = "Expected autoscaling 0-10 and the rotation name appstmp."
+  }
+  assert {
+    condition = (
+      azurerm_kubernetes_cluster_node_pool.user["apps"].node_labels == tomap({ workload = "apps" }) &&
+      azurerm_kubernetes_cluster_node_pool.user["apps"].node_taints == tolist(["workload=apps:NoSchedule"])
+    )
+    error_message = "Expected only the caller's labels and taints on a regular pool."
+  }
+  assert {
+    condition     = length(output.aks_user_node_pool_ids) == 1 && output.aks_user_node_pool_ids["apps"] != null
+    error_message = "Expected the pool's ID in aks_user_node_pool_ids."
+  }
+}
+
+run "user_pool_in_its_own_subnet" {
+  command = plan
+
+  variables {
+    aks_user_node_pools = {
+      batch = {
+        vm_size   = "Standard_D8ds_v5"
+        min_count = 1
+        max_count = 3
+        subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/VNET-TEST/subnets/batch"
+      }
+    }
+  }
+
+  assert {
+    condition     = endswith(azurerm_kubernetes_cluster_node_pool.user["batch"].vnet_subnet_id, "/subnets/batch")
+    error_message = "Expected the pool in its own subnet; the vnet comparison ignores case."
+  }
+}
+
+run "spot_user_pool" {
+  command = plan
+
+  variables {
+    aks_user_node_pools = {
+      spot = {
+        vm_size     = "Standard_D8ds_v5"
+        min_count   = 0
+        max_count   = 5
+        node_labels = { workload = "batch" }
+        node_taints = ["workload=batch:NoSchedule"]
+        spot        = {}
+      }
+      spotcheap = {
+        vm_size   = "Standard_D8ds_v5"
+        min_count = 0
+        max_count = 5
+        spot      = { eviction_policy = "Deallocate", max_price = 0.05 }
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      azurerm_kubernetes_cluster_node_pool.user["spot"].priority == "Spot" &&
+      azurerm_kubernetes_cluster_node_pool.user["spot"].eviction_policy == "Delete" &&
+      azurerm_kubernetes_cluster_node_pool.user["spot"].spot_max_price == -1
+    )
+    error_message = "Expected a Spot pool with the Delete policy and the on-demand price cap by default."
+  }
+  assert {
+    condition = (
+      azurerm_kubernetes_cluster_node_pool.user["spot"].node_labels == tomap({ workload = "batch", "kubernetes.azure.com/scalesetpriority" = "spot" }) &&
+      azurerm_kubernetes_cluster_node_pool.user["spot"].node_taints == tolist(["workload=batch:NoSchedule", "kubernetes.azure.com/scalesetpriority=spot:NoSchedule"])
+    )
+    error_message = "Expected the Spot label and taint added to the caller's own."
+  }
+  assert {
+    condition = (
+      azurerm_kubernetes_cluster_node_pool.user["spotcheap"].eviction_policy == "Deallocate" &&
+      azurerm_kubernetes_cluster_node_pool.user["spotcheap"].spot_max_price == 0.05
+    )
+    error_message = "Expected the given eviction policy and price."
+  }
+}
+
+run "system_pool_reserved_for_system_pods" {
+  command = plan
+
+  variables {
+    aks_system_node_pool = { vm_size = "Standard_D4ds_v5", only_critical_addons_enabled = true }
+  }
+
+  assert {
+    condition     = azurerm_kubernetes_cluster.aks.default_node_pool[0].only_critical_addons_enabled
+    error_message = "Expected the system pool reserved for critical add-ons."
+  }
+}
+
+run "rejects_bad_user_pool_name" {
+  command = plan
+  variables {
+    aks_user_node_pools = { "Apps-1" = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1 } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_user_pool_named_like_system_pool" {
+  command = plan
+  variables {
+    aks_user_node_pools = { system = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1 } }
+  }
+  expect_failures = [azurerm_kubernetes_cluster_node_pool.user["system"]]
+}
+
+run "rejects_user_pool_bad_vm_size" {
+  command = plan
+  variables {
+    aks_user_node_pools = { apps = { vm_size = "D8ds_v5", min_count = 0, max_count = 1 } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_user_pool_min_above_max" {
+  command = plan
+  variables {
+    aks_user_node_pools = { apps = { vm_size = "Standard_D8ds_v5", min_count = 3, max_count = 2 } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_user_pool_negative_min" {
+  command = plan
+  variables {
+    aks_user_node_pools = { apps = { vm_size = "Standard_D8ds_v5", min_count = -1, max_count = 2 } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_user_pool_fractional_count" {
+  command = plan
+  variables {
+    aks_user_node_pools = { apps = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 2.5 } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_user_pool_max_above_1000" {
+  command = plan
+  variables {
+    aks_user_node_pools = { apps = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1001 } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_user_pool_bad_zone" {
+  command = plan
+  variables {
+    aks_user_node_pools = { apps = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1, zones = ["0"] } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_user_pool_bad_os_disk_type" {
+  command = plan
+  variables {
+    aks_user_node_pools = { apps = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1, os_disk_type = "Premium" } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_windows_os_sku" {
+  command = plan
+  variables {
+    aks_user_node_pools = { win = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1, os_sku = "Windows2022" } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_user_pool_bad_subnet_id" {
+  command = plan
+  variables {
+    aks_user_node_pools = { apps = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1, subnet_id = "batch" } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_user_pool_subnet_in_another_vnet" {
+  command = plan
+  variables {
+    aks_user_node_pools = {
+      apps = {
+        vm_size   = "Standard_D8ds_v5"
+        min_count = 0
+        max_count = 1
+        subnet_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/vnet-other/subnets/apps"
+      }
+    }
+  }
+  expect_failures = [azurerm_kubernetes_cluster.aks]
+}
+
+run "rejects_bad_taint" {
+  command = plan
+  variables {
+    aks_user_node_pools = { apps = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1, node_taints = ["workload=apps"] } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_bad_spot_eviction_policy" {
+  command = plan
+  variables {
+    aks_user_node_pools = { spot = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1, spot = { eviction_policy = "Stop" } } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_zero_spot_price" {
+  command = plan
+  variables {
+    aks_user_node_pools = { spot = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1, spot = { max_price = 0 } } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_negative_spot_price" {
+  command = plan
+  variables {
+    aks_user_node_pools = { spot = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1, spot = { max_price = -2 } } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_spot_price_with_six_decimals" {
+  command = plan
+  variables {
+    aks_user_node_pools = { spot = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1, spot = { max_price = 0.123456 } } }
+  }
+  expect_failures = [var.aks_user_node_pools]
+}
+
+run "rejects_pool_named_like_a_rotation_name" {
+  command = plan
+  variables {
+    aks_user_node_pools = { systemtmp = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1 } }
+  }
+  expect_failures = [azurerm_kubernetes_cluster_node_pool.user["systemtmp"]]
+}
+
+run "rejects_pools_sharing_a_rotation_name" {
+  command = plan
+  variables {
+    aks_user_node_pools = {
+      batchpoola1 = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1 }
+      batchpoolb2 = { vm_size = "Standard_D8ds_v5", min_count = 0, max_count = 1 }
+    }
+  }
+  expect_failures = [azurerm_kubernetes_cluster_node_pool.user["batchpoola1"], azurerm_kubernetes_cluster_node_pool.user["batchpoolb2"]]
 }

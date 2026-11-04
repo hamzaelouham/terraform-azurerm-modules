@@ -200,3 +200,11 @@ Re-examined 2026-11-04 by /audit independent (fresh subagent, target 335a884): `
 **Why it matters:** main.tf:76 maps `aks_automatic_upgrade_channel = "none"` to `null`, which is derived logic the testing standard says needs a test, and no run sets `"none"`. The `aks_identity_ids` validation also checks the ID format, but only the two-identity case is tested, so a broken format regex would go unnoticed.
 **Suggested fix:** Add a plan run with `"none"` asserting `automatic_upgrade_channel == null`, and a rejecting run with one malformed identity ID.
 **Resolution:**
+
+### F-51 [P3] open - Two of the four rotation-name collision checks have no test
+
+**File:** modules/aks/main.tf:188
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: tests)
+**Why it matters:** The user-pool rotation precondition has four clauses. Only clause 2 (a pool named like the system pool's rotation name, `rejects_pool_named_like_a_rotation_name`) and clause 3 (two pools sharing a rotation name, `rejects_pools_sharing_a_rotation_name`) are tested. Clause 1 (a pool's rotation name equals another pool's name, e.g. pools `apps` and `appstmp`) and clause 4 (a user pool's rotation name equals the system pool's, e.g. system `sysnodepool` and user `sysnodepoo`) are reachable and each is the only clause that catches its case, yet deleting both from a scratch copy of the target left all 68 shipped tests passing. The testing standard requires a test for precondition logic, so a regression here would let a cluster plan that Azure later fails on during a pool rotation.
+**Suggested fix:** Add two `expect_failures` plan runs to `modules/aks/tests/aks.tftest.hcl`: pools `apps` and `appstmp` expecting `azurerm_kubernetes_cluster_node_pool.user["apps"]`, and system pool `sysnodepool` with user pool `sysnodepoo` expecting `azurerm_kubernetes_cluster_node_pool.user["sysnodepoo"]`. Both were confirmed to fail as expected against the current code.
+**Resolution:**

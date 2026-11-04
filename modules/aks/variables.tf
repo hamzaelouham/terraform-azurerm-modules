@@ -137,14 +137,18 @@ variable "aks_system_node_pool" {
     - min_count, max_count: 1-1000, min <= max. Defaults 2 and 5.
     - zones: availability zones, e.g. ["1", "2", "3"]. null uses no zones.
     - os_disk_type: "Managed" (default) or "Ephemeral", which needs a VM size with enough cache or temp disk.
+    - only_critical_addons_enabled: true taints the pool with CriticalAddonsOnly, so only system pods run
+      there; turn it on once aks_user_node_pools can carry the workloads. Default false. Changing it
+      cycles the pool.
   EOT
   type = object({
-    name         = optional(string, "system")
-    vm_size      = string
-    min_count    = optional(number, 2)
-    max_count    = optional(number, 5)
-    zones        = optional(list(string))
-    os_disk_type = optional(string, "Managed")
+    name                         = optional(string, "system")
+    vm_size                      = string
+    min_count                    = optional(number, 2)
+    max_count                    = optional(number, 5)
+    zones                        = optional(list(string))
+    os_disk_type                 = optional(string, "Managed")
+    only_critical_addons_enabled = optional(bool, false)
   })
   nullable = false
 
@@ -177,6 +181,107 @@ variable "aks_system_node_pool" {
   validation {
     condition     = contains(["Managed", "Ephemeral"], var.aks_system_node_pool.os_disk_type)
     error_message = "aks_system_node_pool os_disk_type must be \"Managed\" or \"Ephemeral\"."
+  }
+}
+
+variable "aks_user_node_pools" {
+  description = <<-EOT
+    Linux user node pools for workloads, keyed by pool name (1-12 lowercase letters and digits, starting
+    with a letter, not the system pool's name). Each pool autoscales. Default {}: no user pools.
+    - vm_size: required, e.g. "Standard_D8ds_v5".
+    - min_count, max_count: required whole numbers, 0 <= min <= max <= 1000. 0 lets the pool scale to zero.
+    - zones: e.g. ["1", "2", "3"]. null uses no zones.
+    - os_disk_type: "Managed" (default) or "Ephemeral".
+    - os_sku: "AzureLinux", "AzureLinux3", "Ubuntu", "Ubuntu2204" or "Ubuntu2404". null uses Azure's default.
+    - subnet_id: a subnet in the same vnet as subnet_id. null uses subnet_id.
+    - node_labels: Kubernetes labels, e.g. { workload = "batch" }.
+    - node_taints: e.g. ["workload=batch:NoSchedule"]; effects NoSchedule, PreferNoSchedule or NoExecute.
+    - spot: set to use Spot VMs, which Azure can evict at any time, e.g. {} or
+      { eviction_policy = "Deallocate", max_price = 0.05 }. eviction_policy "Delete" (default) or
+      "Deallocate"; max_price in USD per VM per hour, or -1 (default) for up to the on-demand price.
+      Spot pools also get the label and taint AKS puts on Spot nodes, so only pods that tolerate
+      kubernetes.azure.com/scalesetpriority=spot:NoSchedule run there.
+  EOT
+  type = map(object({
+    vm_size      = string
+    min_count    = number
+    max_count    = number
+    zones        = optional(list(string))
+    os_disk_type = optional(string, "Managed")
+    os_sku       = optional(string)
+    subnet_id    = optional(string)
+    node_labels  = optional(map(string), {})
+    node_taints  = optional(list(string), [])
+    spot = optional(object({
+      eviction_policy = optional(string, "Delete")
+      max_price       = optional(number, -1)
+    }))
+  }))
+  default  = {}
+  nullable = false
+
+  validation {
+    condition     = alltrue([for name in keys(var.aks_user_node_pools) : can(regex("^[a-z][a-z0-9]{0,11}$", name))])
+    error_message = "aks_user_node_pools names must be 1-12 lowercase letters and digits, starting with a letter."
+  }
+
+  validation {
+    condition     = alltrue([for pool in values(var.aks_user_node_pools) : can(regex("^Standard_[A-Za-z0-9_-]+$", pool.vm_size))])
+    error_message = "aks_user_node_pools vm_size must be an Azure VM size such as \"Standard_D8ds_v5\"."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in values(var.aks_user_node_pools) :
+      pool.min_count >= 0 && pool.min_count <= pool.max_count && pool.max_count <= 1000 &&
+      floor(pool.min_count) == pool.min_count && floor(pool.max_count) == pool.max_count
+    ])
+    error_message = "aks_user_node_pools min_count and max_count must be whole numbers with 0 <= min_count <= max_count <= 1000."
+  }
+
+  validation {
+    condition     = alltrue([for pool in values(var.aks_user_node_pools) : alltrue([for zone in coalesce(pool.zones, []) : contains(["1", "2", "3"], zone)])])
+    error_message = "aks_user_node_pools zones may contain only \"1\", \"2\" and \"3\"."
+  }
+
+  validation {
+    condition     = alltrue([for pool in values(var.aks_user_node_pools) : contains(["Managed", "Ephemeral"], pool.os_disk_type)])
+    error_message = "aks_user_node_pools os_disk_type must be \"Managed\" or \"Ephemeral\"."
+  }
+
+  validation {
+    condition     = alltrue([for pool in values(var.aks_user_node_pools) : contains(["AzureLinux", "AzureLinux3", "Ubuntu", "Ubuntu2204", "Ubuntu2404"], coalesce(pool.os_sku, "Ubuntu"))])
+    error_message = "aks_user_node_pools os_sku must be \"AzureLinux\", \"AzureLinux3\", \"Ubuntu\", \"Ubuntu2204\" or \"Ubuntu2404\", or null. Windows pools aren't supported: the cluster's Cilium data plane is Linux-only."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in values(var.aks_user_node_pools) :
+      can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.Network/virtualNetworks/[^/]+/subnets/[^/]+$", coalesce(pool.subnet_id, "/subscriptions/x/resourceGroups/x/providers/Microsoft.Network/virtualNetworks/x/subnets/x")))
+    ])
+    error_message = "aks_user_node_pools subnet_id must be a subnet resource ID, or null."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in values(var.aks_user_node_pools) : alltrue([
+        for taint in pool.node_taints : can(regex("^[A-Za-z0-9./_-]+(=[A-Za-z0-9._-]*)?:(NoSchedule|PreferNoSchedule|NoExecute)$", taint))
+      ])
+    ])
+    error_message = "aks_user_node_pools node_taints must look like \"key=value:NoSchedule\" or \"key:NoExecute\", with effect NoSchedule, PreferNoSchedule or NoExecute."
+  }
+
+  validation {
+    condition     = alltrue([for pool in values(var.aks_user_node_pools) : contains(["Delete", "Deallocate"], try(pool.spot.eviction_policy, "Delete"))])
+    error_message = "aks_user_node_pools spot eviction_policy must be \"Delete\" or \"Deallocate\"."
+  }
+
+  validation {
+    condition = alltrue([
+      for pool in values(var.aks_user_node_pools) :
+      try(pool.spot.max_price, -1) == -1 || (try(pool.spot.max_price, -1) > 0 && can(regex("^[0-9]+(\\.[0-9]{1,5})?$", tostring(try(pool.spot.max_price, -1)))))
+    ])
+    error_message = "aks_user_node_pools spot max_price must be -1 (up to the on-demand price) or a positive USD price with at most 5 decimal places."
   }
 }
 
@@ -283,7 +388,7 @@ variable "aks_acr_pull" {
 }
 
 variable "aks_tags" {
-  description = "Tags for the cluster and its system node pool."
+  description = "Tags for the cluster, its system node pool and every user node pool."
   type        = map(string)
   default     = {}
   nullable    = false

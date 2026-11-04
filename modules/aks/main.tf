@@ -8,6 +8,21 @@ locals {
   rotation_pool_prefix = substr(var.aks_system_node_pool.name, 0, 9)
   rotation_pool_suffix = "${local.rotation_pool_prefix}tmp" == var.aks_system_node_pool.name ? "rot" : "tmp"
   rotation_pool_name   = "${local.rotation_pool_prefix}${local.rotation_pool_suffix}"
+
+  # Same rule for each user pool's temporary rotation name.
+  user_pool_rotation_names = {
+    for name in keys(var.aks_user_node_pools) :
+    name => "${substr(name, 0, 9)}${"${substr(name, 0, 9)}tmp" == name ? "rot" : "tmp"}"
+  }
+  all_pool_names  = concat([var.aks_system_node_pool.name], keys(var.aks_user_node_pools))
+  cluster_vnet_id = split("/subnets/", lower(var.subnet_id))[0]
+  # User pools whose subnet is in another vnet; checked on the cluster so nothing is half-created.
+  pools_outside_cluster_vnet = [
+    for name, pool in var.aks_user_node_pools : name
+    if split("/subnets/", lower(coalesce(pool.subnet_id, var.subnet_id)))[0] != local.cluster_vnet_id
+  ]
+  spot_label = { "kubernetes.azure.com/scalesetpriority" = "spot" }
+  spot_taint = "kubernetes.azure.com/scalesetpriority=spot:NoSchedule"
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
@@ -43,16 +58,17 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 
   default_node_pool {
-    name                        = var.aks_system_node_pool.name
-    vm_size                     = var.aks_system_node_pool.vm_size
-    vnet_subnet_id              = var.subnet_id
-    auto_scaling_enabled        = true
-    min_count                   = var.aks_system_node_pool.min_count
-    max_count                   = var.aks_system_node_pool.max_count
-    zones                       = var.aks_system_node_pool.zones
-    os_disk_type                = var.aks_system_node_pool.os_disk_type
-    temporary_name_for_rotation = local.rotation_pool_name
-    tags                        = var.aks_tags
+    name                         = var.aks_system_node_pool.name
+    vm_size                      = var.aks_system_node_pool.vm_size
+    vnet_subnet_id               = var.subnet_id
+    auto_scaling_enabled         = true
+    min_count                    = var.aks_system_node_pool.min_count
+    max_count                    = var.aks_system_node_pool.max_count
+    zones                        = var.aks_system_node_pool.zones
+    os_disk_type                 = var.aks_system_node_pool.os_disk_type
+    temporary_name_for_rotation  = local.rotation_pool_name
+    only_critical_addons_enabled = var.aks_system_node_pool.only_critical_addons_enabled
+    tags                         = var.aks_tags
   }
 
   # Required in azurerm 5.x. Manual: this module defines the node pools; "Auto" would
@@ -126,8 +142,55 @@ resource "azurerm_kubernetes_cluster" "aks" {
       error_message = "aks_network dns_service_ip must be inside service_cidr, e.g. \"172.16.0.10\" in \"172.16.0.0/16\"."
     }
     precondition {
+      condition     = length(local.pools_outside_cluster_vnet) == 0
+      error_message = "aks_user_node_pools subnet_id must be in the same vnet as subnet_id; these pools aren't: ${join(", ", local.pools_outside_cluster_vnet)}."
+    }
+    precondition {
       condition     = var.aks_automatic_upgrade_channel != "node-image" || var.aks_node_os_upgrade_channel == "NodeImage"
       error_message = "aks_automatic_upgrade_channel \"node-image\" requires aks_node_os_upgrade_channel \"NodeImage\"."
+    }
+  }
+}
+
+resource "azurerm_kubernetes_cluster_node_pool" "user" {
+  for_each = var.aks_user_node_pools
+
+  name                        = each.key
+  kubernetes_cluster_id       = azurerm_kubernetes_cluster.aks.id
+  mode                        = "User"
+  os_type                     = "Linux"
+  os_sku                      = each.value.os_sku
+  vm_size                     = each.value.vm_size
+  vnet_subnet_id              = coalesce(each.value.subnet_id, var.subnet_id)
+  auto_scaling_enabled        = true
+  min_count                   = each.value.min_count
+  max_count                   = each.value.max_count
+  zones                       = each.value.zones
+  os_disk_type                = each.value.os_disk_type
+  temporary_name_for_rotation = local.user_pool_rotation_names[each.key]
+
+  # AKS adds the Spot label and taint itself; declaring them keeps later plans clean.
+  priority        = each.value.spot == null ? "Regular" : "Spot"
+  eviction_policy = try(each.value.spot.eviction_policy, null)
+  spot_max_price  = try(each.value.spot.max_price, null)
+  node_labels     = each.value.spot == null ? each.value.node_labels : merge(each.value.node_labels, local.spot_label)
+  node_taints     = each.value.spot == null ? each.value.node_taints : distinct(concat(each.value.node_taints, [local.spot_taint]))
+
+  tags = var.aks_tags
+
+  lifecycle {
+    precondition {
+      condition     = each.key != var.aks_system_node_pool.name
+      error_message = "aks_user_node_pools \"${each.key}\": the name is already used by the system pool."
+    }
+    precondition {
+      condition = (
+        !contains(local.all_pool_names, local.user_pool_rotation_names[each.key]) &&
+        each.key != local.rotation_pool_name &&
+        length([for name, rotation in local.user_pool_rotation_names : name if rotation == local.user_pool_rotation_names[each.key]]) == 1 &&
+        local.user_pool_rotation_names[each.key] != local.rotation_pool_name
+      )
+      error_message = "aks_user_node_pools \"${each.key}\": its name or its temporary rotation name (${local.user_pool_rotation_names[each.key]}) collides with another pool's name or rotation name. Rename the pool."
     }
   }
 }
