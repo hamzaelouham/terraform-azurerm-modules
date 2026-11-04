@@ -95,6 +95,7 @@ jobs:
           VERSION: ${{ needs.check.outputs.new_version }}
           MAJOR_BUMP: ${{ needs.check.outputs.major_bump }}
       # No token or key here: this result, not the agent's own account, goes in the PR.
+      # It runs where agent-written HCL already ran, so the PR's own CI is the one to trust.
       - name: Verify after the agent
         run: sh scripts/verify.sh > verify-final.txt 2>&1 || true
       # --no-renames: the patch gate rejects renames, and a move is just a delete and a new file.
@@ -121,6 +122,8 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      # The ref that triggered the run, which the patch was built against: main on the
+      # schedule. A manual run from another branch also puts that branch's commits in the PR.
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:

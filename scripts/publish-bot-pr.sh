@@ -55,7 +55,7 @@ body=$(mktemp)
 trap 'rm -f "$body"' EXIT
 {
   head -c 60000 "$input/pr-body.md"
-  printf '\n\n## Verify, run without the agent\n\n### Before the agent\n\n```text\n'
+  printf '\n\n## Verify, run without the agent\n\nFrom the job that ran the agent, so it is informational only. The CI checks on this PR are the result to trust.\n\n### Before the agent\n\n```text\n'
   verify_summary "$input/verify-baseline.txt"
   printf '```\n\n### After the agent\n\n```text\n'
   verify_summary "$input/verify-final.txt"

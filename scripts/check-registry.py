@@ -10,6 +10,7 @@ Exits 1 on any error, or when a module no longer validates.
 """
 import base64
 import glob
+import http.client
 import json
 import os
 import re
@@ -166,7 +167,9 @@ def write_release_notes(reviewed_text, latest_text, releases):
         try:
             with urllib.request.urlopen(url, timeout=60) as response:
                 parts.append(f"# Upgrade guide for azurerm {major}.0\n\n{response.read().decode()}")
-        except urllib.error.URLError:
+        # Any failure, including a timeout or a cut-off reply, counts as no guide, so the
+        # report is still published.
+        except (OSError, http.client.HTTPException, UnicodeDecodeError):
             missing.append(major)
     with open(NOTES, "w") as f:
         f.write("\n\n".join(parts) + "\n")
@@ -336,7 +339,8 @@ def main():
 
     # Written after publishing and before any exit: a module that no longer validates
     # is exactly what the agent is for, but it never runs on a major without its guide.
-    if missing_guides:
+    # Only GitHub runs the agent; the other platforms keep the report-only check.
+    if missing_guides and os.environ.get("GITHUB_OUTPUT"):
         sys.exit(f"No upgrade guide found for azurerm {missing_guides}; the agent won't run.")
     write_outputs(reviewed, latest, ver(latest)[0] > ver(reviewed)[0])
 

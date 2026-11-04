@@ -56,7 +56,7 @@ def test_writes_in_its_module(repo):
     "scripts/verify.sh", ".github/workflows/ci.yml", ".azurerm-reviewed-version", "root.tf", "../outside.tf",
     "modules/../scripts/verify.sh", "modules/vnet/.terraform/x.tf", "modules/vnet/.terraformrc.tf",
     "modules/vnet/run.sh", "modules/vnet/noext", "/tmp/x.tf", "modules/vnet", "modules/key-vault/main.tf",
-    "modules/new.tf",
+    "modules/new.tf", "modules/vnet/override.tf", "modules/vnet/x_override.tf", "modules/vnet/examples/a.tf",
 ])
 def test_refuses_writes_elsewhere(repo, path):
     before = (repo / "modules" / "key-vault" / "main.tf").read_text()
@@ -64,6 +64,12 @@ def test_refuses_writes_elsewhere(repo, path):
     assert (repo / "scripts" / "verify.sh").read_text().startswith('echo "--- tflint')
     assert (repo / "modules" / "key-vault" / "main.tf").read_text() == before
     assert not (repo.parent / "outside.tf").exists()
+
+
+def test_refuses_writes_when_git_cant_tell_if_ignored(repo):
+    (repo / ".git").rename(repo / "not-git")
+    assert call(Toolbox(repo, "vnet"), "write_file", path="modules/vnet/new.tf", content="x").startswith("Refused")
+    assert not (repo / "modules" / "vnet" / "new.tf").exists()
 
 
 def test_refuses_writing_through_a_symlink(repo):

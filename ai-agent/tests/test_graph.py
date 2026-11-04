@@ -39,6 +39,12 @@ def tool_call(name, usage=USAGE, **args):
                      tool_calls=[{"name": name, "args": args, "id": f"call-{name}", "type": "tool_call"}])
 
 
+def tool_calls(*calls, usage=USAGE):
+    """One reply asking for several tools: (name, args) pairs."""
+    return AIMessage(content="", usage_metadata=usage, tool_calls=[
+        {"name": name, "args": args, "id": f"call-{i}", "type": "tool_call"} for i, (name, args) in enumerate(calls)])
+
+
 def run(repo, *script, model=None):
     model = model or ScriptedModel(script=list(script), seen=[])
     return main.run("5.11.0", "5.12.0", False, model=model, root=repo)
@@ -77,6 +83,35 @@ def test_one_session_per_module_each_seeing_only_its_changes(repo):
     assert "modules/vnet" in first and "vnet note" in first and "kv note" not in first
     assert "modules/key-vault" in second and "kv note" in second and "no longer validates" in second
     assert "## vnet\n\nvnet section" in body(repo) and "## key-vault\n\nkv section" in body(repo)
+
+
+def test_tool_calls_in_one_reply_run_in_order_one_at_a_time(repo):
+    # Verify prints the file it checks, and notices if another Verify is running at the same time.
+    (repo / "scripts" / "verify.sh").write_text(
+        'mkdir running.lock 2>/dev/null || echo OVERLAP\nsleep 0.3\ncat "modules/$1/main.tf"\nrmdir running.lock\n')
+    model = ScriptedModel(script=[
+        tool_calls(("write_file", {"path": "modules/vnet/main.tf", "content": "written first\n"}),
+                   ("run_verify", {}), ("run_verify", {}), ("no_such_tool", {})),
+        tool_call("write_pr_section", text="done")], seen=[])
+    assert run(repo, model=model) == 0
+    results = [m.content for m in model.seen[1][-4:]]
+    assert results[0] == "Wrote modules/vnet/main.tf."
+    assert all("written first" in r and "OVERLAP" not in r for r in results[1:3])
+    assert results[3].startswith("Refused")
+
+
+def test_bad_arguments_go_back_to_the_model(repo):
+    model = ScriptedModel(script=[tool_call("read_file"), tool_call("write_pr_section", text="done")], seen=[])
+    assert run(repo, model=model) == 0
+    assert model.seen[1][-1].content.startswith("Refused: the arguments don't fit read_file")
+
+
+def test_nothing_runs_after_the_section_is_written(repo):
+    before = (repo / "modules" / "vnet" / "main.tf").read_text()
+    assert run(repo, tool_calls(("write_pr_section", {"text": "No changes needed."}),
+                                ("write_file", {"path": "modules/vnet/main.tf", "content": "late"}))) == 0
+    assert (repo / "modules" / "vnet" / "main.tf").read_text() == before
+    assert "No changes needed." in body(repo)
 
 
 def test_a_session_cant_touch_another_module(repo):

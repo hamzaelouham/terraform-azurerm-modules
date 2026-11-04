@@ -100,6 +100,13 @@ class Toolbox:
                 raise Refused(f"{path} goes through a symlink.")
         return self.root / relative
 
+    def _ignored(self, target):
+        """True if git ignores the path, or if git can't tell: the patch is built with `git add`."""
+        relative = str(target.relative_to(self.root))
+        result = subprocess.run(["git", "check-ignore", "-q", "--", relative], cwd=self.root,
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return result.returncode != 1
+
     def _readable(self, path):
         if path in INPUT_FILES:
             target = self.root / path
@@ -163,6 +170,8 @@ class Toolbox:
             raise Refused(f"Only {', '.join(WRITABLE_SUFFIXES)} files can be written.")
         if target.is_dir():
             raise Refused(f"{path} is a folder.")
+        if self._ignored(target):
+            raise Refused(f"{path} is ignored by git, so it would be verified but left out of the pull request.")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content)
         return f"Wrote {path}."

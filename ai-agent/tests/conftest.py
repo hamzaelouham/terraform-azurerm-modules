@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -22,8 +23,8 @@ def repo(tmp_path):
         'echo "--- modules/$1: validate"\necho "ran with args: $*"\n'
         'echo "key=${OPENAI_API_KEY:-absent}"\necho "model=${AI_AGENT_MODEL:-absent}"\n'
     )
-    (tmp_path / ".git").mkdir()
-    (tmp_path / ".git" / "config").write_text("secret\n")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".gitignore").write_text("override.tf\n*_override.tf\nexamples/\n")
     (tmp_path / ".env").write_text("TOKEN=secret\n")
     (tmp_path / "azurerm-report.md").write_text("report\n")
     (tmp_path / "azurerm-release-notes.md").write_text("note one\nazurerm_vnet changed\n")

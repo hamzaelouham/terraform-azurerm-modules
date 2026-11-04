@@ -134,3 +134,29 @@
 **Why it matters:** The description says "Restrict further with kv_network_acls", written when no rules applied by default. With this fix, the default of `true` and the new default rules deny all networks except trusted Azure services, so the public flag on its own no longer grants access. `key-vault` has no README, so this description is the main place a caller reads it. The standards require descriptions to state how defaults behave.
 **Suggested fix:** Reword to say public access stays subject to `kv_network_acls`, which denies by default, matching `sa_public_network_access_enabled`. Description only.
 **Resolution:**
+
+### F-29 [P3] open - An unreferenced root image.png shows an outdated flow
+
+**File:** docs/image.png
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: quality)
+**Why it matters:** The 551 KB diagram at the repo root, titled "planned flow", isn't linked from any file and isn't in the spec's Files list. It shows a single agent session finishing with `write_pr_body`, but the code runs one session per affected module that finishes with `write_pr_section`. Readers of the public repo would get the old design.
+**Suggested fix:** Update it to the per-module flow, move it under a docs path with a descriptive name, and link it from where the agent is documented. Or drop it from the feature. No current requirement is lost.
+**Resolution:** Re-examined 2026-11-04 by /audit independent (fresh subagent): still present at `8a3a41a`, still unreferenced (`git grep image.png` finds nothing), and still shows one session ending in `write_pr_body`. Stays open.
+Re-examined 2026-11-04 by /audit independent (fresh subagent, target e0ed31d): unchanged since `69668de`, still unreferenced, still titled "planned flow" with one session ending in `write_pr_body`. Stays open.
+Re-examined 2026-11-04 by /audit independent (fresh subagent, target 335a884): `335a884` only moved it to `docs/image.png` (bytes identical to `69668de`). `git grep image.png` still finds no reference, and it still shows "planned flow", a single session and `write_pr_body`. The move covers half of the suggested fix; the content and the link are still missing. Stays open.
+
+### F-33 [P3] open - A tool call whose arguments aren't valid JSON still fails the whole run
+
+**File:** ai-agent/graph.py:29
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: quality, tests)
+**Why it matters:** `langchain-openai` puts a tool call with unparseable JSON arguments in `reply.invalid_tool_calls`, not `reply.tool_calls`. When that is the reply's only call, `agent` raises "The model stopped without calling write_pr_section", which is misleading, and the month's run ends with no PR. A scratch run with a scripted reply holding only an invalid `read_file` call exited 1 after one model call. When a reply mixes valid and invalid calls, the `tools` node answers only the valid ones, while `langchain-openai` (`_convert_message_to_dict`, `base.py:490-495`) sends the invalid ones back as `tool_calls`, so the next request has call IDs without a tool message, which OpenAI's API rejects (not reproduced: no real endpoint in this review). This predates the F-30 repair (`ToolNode` didn't answer invalid calls either), so it's the same failure class F-30 fixed, through a different path. Cost: one wasted monthly run, retried next month.
+**Suggested fix:** In `agent`, treat `reply.invalid_tool_calls` as calls, and in `tools` answer each with `Refused: the arguments aren't valid JSON: <error>` so the model can retry. Add a test with an invalid call followed by `write_pr_section`.
+**Resolution:** Re-examined 2026-11-04 by /audit independent (fresh subagent, target 335a884): `graph.py:29` still checks only `reply.tool_calls`, and the `tools` node still answers only those. Unchanged. Stays open.
+
+### F-34 [P3] open - A PR creation failure after the push leaves a branch that fails every later run
+
+**File:** scripts/publish-bot-pr.sh:116
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: quality)
+**Why it matters:** `publish-bot-pr.sh` pushes `bot/azurerm-<version>` before `gh pr create`. If PR creation fails (for example, "Allow GitHub Actions to create and approve pull requests" turned off, or a body over GitHub's limit, since `@` becomes `&#64;` after the 60,000-byte cut), the branch stays with no PR. The `check` job's `pr_exists` looks only at PRs, so next month the propose job runs and spends the model budget again, then publish fails at `git push` (non-fast-forward). This repeats every month until a person deletes the branch. Reproduced in a scratch copy with a local bare remote and a `gh` that fails: run 1 pushed the branch and failed at PR creation, and run 2 was rejected at push. Nothing unsafe reaches the repo; the cost is repeated failed runs and token spend.
+**Suggested fix:** In the `existing` step, also treat an existing `bot/azurerm-<version>` branch (`git ls-remote --heads origin`) as existing, so the agent doesn't rerun and the run says why. Or push with `--force` in `publish-bot-pr.sh`, since the bot owns that branch and it has no PR. Applying the `@` escape before the cut also keeps the body under the limit. No current requirement is lost.
+**Resolution:**
