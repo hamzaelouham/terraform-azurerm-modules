@@ -186,7 +186,7 @@ sequenceDiagram
   participant GH as GitHub
   C->>C: check-registry.py github
   C->>GH: open or update the issue
-  C->>GH: does a bot/azurerm-X.Y.Z PR exist?
+  C->>GH: does a bot/azurerm-X.Y.Z PR exist?<br/>(a manual run with retry_closed ignores closed ones)
   alt new version and no PR yet
     C->>A: report, release notes, affected resources
     A->>A: install-tools.sh

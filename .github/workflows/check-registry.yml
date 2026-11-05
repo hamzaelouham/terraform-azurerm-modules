@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "23 7 1 * *" # 1st of every month, 07:23 UTC
   workflow_dispatch:
+    inputs:
+      retry_closed:
+        description: Run the agent even if a bot PR for this version was closed without merging
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -37,14 +42,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
       # always(): a module that no longer validates fails the step above, but still needs the agent.
+      # Any PR for this version, open, merged or closed, stops the agent, so a rejected
+      # proposal isn't sent again every month. GitHub can't delete a closed PR, so a manual
+      # run with retry_closed ignores closed ones. Scheduled runs have no inputs.
       - id: existing
         if: always() && steps.registry.outputs.new_version != ''
         run: |
-          count=$(gh pr list --head "bot/azurerm-$VERSION" --state all --json number --jq length)
+          if [ "$RETRY_CLOSED" = "true" ]; then filter='[.[] | select(.state != "CLOSED")] | length'; else filter='length'; fi
+          count=$(gh pr list --head "bot/azurerm-$VERSION" --state all --json state --jq "$filter")
           if [ "$count" = "0" ]; then echo "pr_exists=false"; else echo "pr_exists=true"; fi >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.registry.outputs.new_version }}
+          RETRY_CLOSED: ${{ inputs.retry_closed }}
       - uses: actions/upload-artifact@v7
         if: always() && steps.registry.outputs.new_version != ''
         with:
