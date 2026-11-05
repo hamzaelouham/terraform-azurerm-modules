@@ -34,6 +34,8 @@ Notes:
 - Windows computer names are limited to 15 characters of letters, digits and
   `-`. Set `vm_computer_name` when `vm_name` doesn't fit.
 - UltraSSD_LRS and PremiumV2_LRS data disks need `vm_zone`, and use no caching.
+- The NIC has no network security group of its own. It relies on the subnet's
+  NSG, which the `vnet` module attaches by default (`associate_nsg = true`).
 - Run `terraform test` in this directory for offline checks (mocked providers).
 
 <!-- BEGIN_TF_DOCS -->

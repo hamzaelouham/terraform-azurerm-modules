@@ -4,19 +4,20 @@ locals {
 }
 
 resource "azurerm_storage_account" "sa" {
-  name                            = var.sa_name
-  resource_group_name             = var.resource_group_name
-  location                        = var.location
-  account_tier                    = var.sa_account_tier
-  account_kind                    = var.sa_account_kind
-  account_replication_type        = var.sa_replication_type
-  access_tier                     = local.access_tier
-  https_traffic_only_enabled      = true
-  min_tls_version                 = "TLS1_2"
-  shared_access_key_enabled       = var.sa_shared_access_key_enabled
-  public_network_access           = var.sa_public_network_access_enabled ? "Enabled" : "Disabled"
-  allow_nested_items_to_be_public = var.sa_allow_nested_items_to_be_public
-  tags                            = var.sa_tags
+  name                              = var.sa_name
+  resource_group_name               = var.resource_group_name
+  location                          = var.location
+  account_tier                      = var.sa_account_tier
+  account_kind                      = var.sa_account_kind
+  account_replication_type          = var.sa_replication_type
+  access_tier                       = local.access_tier
+  https_traffic_only_enabled        = true
+  min_tls_version                   = "TLS1_2"
+  infrastructure_encryption_enabled = true
+  shared_access_key_enabled         = var.sa_shared_access_key_enabled
+  public_network_access             = var.sa_public_network_access_enabled ? "Enabled" : "Disabled"
+  allow_nested_items_to_be_public   = var.sa_allow_nested_items_to_be_public
+  tags                              = var.sa_tags
 
   dynamic "network_rules" {
     for_each = var.sa_network_rules == null ? [] : [var.sa_network_rules]

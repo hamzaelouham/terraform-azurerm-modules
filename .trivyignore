@@ -1,1 +1,11 @@
 # Accepted security findings. Each entry needs a comment with the reason.
+
+# storage-account, accepted 2026-11-04: Trivy checks queue_properties logging, which
+# azurerm 5.x removed; callers send storage logs to Azure Monitor with a diagnostic
+# setting on the account.
+AZU-0057
+
+# virtual-machine, accepted 2026-11-04: NSGs are applied at the subnet by the vnet
+# module (associate_nsg defaults to true); Trivy only detects a NIC argument
+# azurerm 5.x removed.
+AZU-0068

@@ -35,6 +35,7 @@ run "defaults_are_secure" {
     condition = (
       azurerm_storage_account.sa.min_tls_version == "TLS1_2" &&
       azurerm_storage_account.sa.https_traffic_only_enabled &&
+      azurerm_storage_account.sa.infrastructure_encryption_enabled &&
       !azurerm_storage_account.sa.allow_nested_items_to_be_public &&
       azurerm_storage_account.sa.shared_access_key_enabled &&
       azurerm_storage_account.sa.public_network_access == "Enabled" &&

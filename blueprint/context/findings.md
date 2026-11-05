@@ -216,3 +216,11 @@ Re-examined 2026-11-04 by /audit independent (fresh subagent, target 335a884): `
 **Why it matters:** After this fix Container Insights is always on and the workspace is required, but `blueprint/project-plan.md:35`, `blueprint/build-plan.md:30` and the derived `blueprint/context/project-overview.md:39` all list it as optional. The spec notes only the build-plan line. Later specs and reviews read these files as the source of truth.
 **Suggested fix:** The user updates the two plan lines (they own them), then `/overview` regenerates the overview. Mention all three at `/complete`. Not a code change.
 **Resolution:**
+
+### F-56 [P3] open - The defaults_are_secure error message doesn't name infrastructure encryption
+
+**File:** modules/storage-account/tests/storage.tftest.hcl:44
+**Found:** 2026-11-04 by /audit independent (scope: current; lens: tests)
+**Why it matters:** The new `infrastructure_encryption_enabled` condition was added to the combined assert, but its `error_message` still lists only "TLS1_2, HTTPS only, no public containers, shared key on, public network on, Hot tier". A mutation probe (setting removed) shows the assert does fail, so coverage is real, but the failure text doesn't point at the cause.
+**Suggested fix:** Add "infrastructure encryption" to the error message (user-owned module test). No behaviour change.
+**Resolution:**

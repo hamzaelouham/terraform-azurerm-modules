@@ -29,8 +29,8 @@ module "storage" {
 
 Defaults:
 
-- Always HTTPS only and TLS 1.2. Containers can't be public unless
-  `sa_allow_nested_items_to_be_public = true`.
+- Always HTTPS only, TLS 1.2 and infrastructure (double) encryption. Containers
+  can't be public unless `sa_allow_nested_items_to_be_public = true`.
 - Shared key (access key) auth is on. With `sa_shared_access_key_enabled = false`
   the account is Entra ID only, and callers' azurerm provider needs
   `storage_use_azuread = true` for data-plane operations.
@@ -38,6 +38,8 @@ Defaults:
   or set it to `null` to remove the rules. IP rules take public IPv4 addresses or
   CIDRs up to /30; use `virtual_network_subnet_ids` for private ranges.
 - No versioning or soft delete until `sa_blob_properties` is set.
+- No storage logging in the module. Send logs to Azure Monitor with a diagnostic
+  setting on the account (`azurerm_monitor_diagnostic_setting`).
 
 Containers and shares are created through Azure Resource Manager, so Terraform
 can still manage them when network rules deny access or shared keys are off.

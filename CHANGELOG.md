@@ -40,9 +40,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   managed identity by default. `vm_tags` also reaches the OS disk. Deploys into an
   existing resource group and subnet. Linux uses SSH keys only; Windows takes
   `vm_admin_password` from the caller. Requires azurerm 5.12 or later within 5.x, and azapi 2.x.
-- `storage-account` module: storage account with HTTPS only and TLS 1.2, public
-  containers off by default, optional network rules (`sa_network_rules`) and blob
-  versioning/soft delete (`sa_blob_properties`), blob containers
+- `storage-account` module: storage account with HTTPS only, TLS 1.2 and
+  infrastructure encryption, public containers off by default, optional network
+  rules (`sa_network_rules`) and blob versioning/soft delete
+  (`sa_blob_properties`), blob containers
   (`sa_containers`), file shares (`sa_file_shares`) and an optional blob private
   endpoint (`sa_private_endpoint`) with registration in your own private DNS zone.
   Deploys into an existing resource group. Requires azurerm 5.12 or later within 5.x.
