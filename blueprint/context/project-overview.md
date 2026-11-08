@@ -27,7 +27,7 @@ defaults to compose instead.
 In build order. Headline: `virtual-machine`, the module that composes the others.
 All build-plan items are complete.
 
-1. [x] **resource-group** - resource group with tags and `prevent_destroy`.
+1. [x] **resource-group** - resource group with tags; `prevent_destroy` off since `v1.1.0`.
 2. [x] **vnet** - virtual network, subnets (service endpoints, NSG association), one NSG with rules.
 3. [x] **key-vault** - RBAC key vault, purge protection, optional access policies and network ACLs.
 4. [x] **service-principal** - Entra ID app and service principal, OIDC federated credentials, optional rotating secret.
