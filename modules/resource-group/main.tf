@@ -5,6 +5,6 @@ resource "azurerm_resource_group" "rg" {
 
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
