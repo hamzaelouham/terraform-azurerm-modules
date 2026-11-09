@@ -46,11 +46,11 @@ flow through sensitive variables and outputs and must never be committed.
 - Terraform `>= 1.17` in modules; 1.17.0 pinned in CI
 - Providers: azurerm 5.x (resource-group allows 4.x), azapi 2.x (VM OS disk tags), azuread 3.x and time (service-principal)
 - `terraform test` with mocked providers for offline module tests
-- Hosted on GitHub: `hamzaelouham/terraform-azurerm-modules`
+- Hosted on GitHub (`hamzaelouham/terraform-azurerm-modules`), with a mirror in Azure Repos (`hamzaelouham0104/terraform-azurerm-modules`); pushes go to both
 - CI tools: tflint 0.65.0, tflint-ruleset-azurerm 0.33.0, trivy 0.76.1, terraform-docs 0.24.0
 - CI: `terraform fmt`, init + validate, tflint, trivy (HIGH, CRITICAL), terraform-docs, then `terraform test` where a module has tests; the same pipeline (`sh scripts/verify.sh`) on four platforms (GitHub Actions, GitLab CI, Jenkins, Azure Pipelines); written, not yet run on any of them
 - azurerm update check: monthly `scripts/check-registry.py` on all four platforms, compared with `.azurerm-reviewed-version`
-- AI upgrade agent (GitHub only): custom Python agent in `ai-agent/`, built on LangGraph and LangChain, using any OpenAI-compatible model through an `OPENAI_API_KEY` repo secret, with step and token limits
+- AI upgrade agent (GitHub Actions and Azure Pipelines): custom Python agent in `ai-agent/`, built on LangGraph and LangChain, using any OpenAI-compatible model through an `OPENAI_API_KEY` secret on each, with step and token limits
 
 ## 6. Monetize - How will this make money?
 

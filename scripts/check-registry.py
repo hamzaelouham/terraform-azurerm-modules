@@ -177,7 +177,7 @@ def write_release_notes(reviewed_text, latest_text, releases):
 
 
 def write_outputs(reviewed_text, latest_text, major_bump):
-    """Tells later GitHub Actions jobs that the agent should run."""
+    """Tells later GitHub Actions or Azure Pipelines jobs that the agent should run."""
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
             f.write(f"reviewed={reviewed_text}\nnew_version={latest_text}\nmajor_bump={str(major_bump).lower()}\n")
@@ -339,7 +339,7 @@ def main():
 
     # Written after publishing and before any exit: a module that no longer validates
     # is exactly what the agent is for, but it never runs on a major without its guide.
-    # Only GitHub runs the agent; the other platforms keep the report-only check.
+    # GitHub and Azure Pipelines run the agent; GitLab and Jenkins keep the report-only check.
     if missing_guides and os.environ.get("GITHUB_OUTPUT"):
         sys.exit(f"No upgrade guide found for azurerm {missing_guides}; the agent won't run.")
     write_outputs(reviewed, latest, ver(latest)[0] > ver(reviewed)[0])

@@ -1,0 +1,24 @@
+# The upgrade agent's offline tests, with a scripted fake model. Mirrors
+# .github/workflows/ai-agent.yml. Azure Repos ignores pr: here, so pull requests are
+# covered by a build validation policy with the same path filter (docs/azure-devops.md).
+trigger:
+  branches:
+    include: [main]
+  paths:
+    include:
+      - ai-agent
+      - .azure-pipelines/ai-agent.yml
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "3.13"
+  - script: pip install --require-hashes -r ai-agent/requirements-dev.txt
+    displayName: Install test dependencies
+  - script: python -m pytest ai-agent/tests
+    displayName: Agent tests

@@ -1,6 +1,6 @@
 # terraform-azurerm-modules - Project Overview
 
-<!-- blueprint:source-hash 6095ab3ce5267331d19d2bd834b1bb5f06ab20aae520ffc09f50961e1dcd7b89 -->
+<!-- blueprint:source-hash db281f67b699a15cef9f861fc1e85aaa902eeddeddbb6166585f044530db5ebf -->
 
 > A public library of reusable, versioned Terraform modules for Azure.
 
@@ -25,7 +25,7 @@ defaults to compose instead.
 ## Features
 
 In build order. Headline: `virtual-machine`, the module that composes the others.
-All build-plan items are complete.
+Items 1-8 are complete; 9 is next.
 
 1. [x] **resource-group** - resource group with tags; `prevent_destroy` off since `v1.1.0`.
 2. [x] **vnet** - virtual network, subnets (service endpoints, NSG association), one NSG with rules.
@@ -39,6 +39,7 @@ All build-plan items are complete.
    - [x] 7a. **AKS core cluster** - private by default, system node pool, Azure CNI Overlay, Entra ID RBAC with local accounts off, Container Insights always on (Log Analytics workspace required); optional workload identity, ACR pull, Key Vault secrets CSI.
    - [x] 7b. **AKS user node pools** - optional Linux user node pools, regular or Spot; opt-in to reserve the system pool for system pods.
 8. [x] **AI azurerm upgrade agent** - when the monthly check finds a new azurerm version, propose module changes in a draft PR for human review.
+9. [ ] **AI upgrade agent on Azure DevOps** - run the same agent in Azure Pipelines and open its draft PR in Azure Repos, as on GitHub.
 
 ## Data model
 
@@ -77,11 +78,11 @@ modules must follow them.
 - **azapi 2.x** - only where azurerm can't (VM OS disk tags).
 - **azuread 3.x + time** - service-principal.
 - **`terraform test` with mocked providers** - offline module tests.
-- **GitHub** - `hamzaelouham/terraform-azurerm-modules`.
+- **GitHub** - `hamzaelouham/terraform-azurerm-modules`, mirrored in **Azure Repos** (`hamzaelouham0104/terraform-azurerm-modules`); pushes go to both.
 - **CI tools** - tflint 0.65.0, tflint-ruleset-azurerm 0.33.0, trivy 0.76.1, terraform-docs 0.24.0.
 - **CI on four platforms** (GitHub Actions, GitLab CI, Jenkins, Azure Pipelines) - one pipeline, `sh scripts/verify.sh`: `terraform fmt`, init + validate, tflint, trivy (HIGH, CRITICAL), terraform-docs, then `terraform test` where a module has tests. Written, not yet run on any of them.
 - **azurerm update check** - monthly `scripts/check-registry.py` on all four platforms, compared with `.azurerm-reviewed-version`.
-- **AI upgrade agent (GitHub only)** - custom Python agent in `ai-agent/`, built on LangGraph and LangChain, using any OpenAI-compatible model through an `OPENAI_API_KEY` repo secret, with step and token limits.
+- **AI upgrade agent (GitHub Actions and Azure Pipelines)** - custom Python agent in `ai-agent/`, built on LangGraph and LangChain, using any OpenAI-compatible model through an `OPENAI_API_KEY` secret on each platform, with step and token limits.
 
 ## Monetization
 
@@ -110,5 +111,5 @@ still creates every release tag.
 - **Release checks are unplanned.** The plans say a person creates every tag, but not what runs on a tag (the release check and its MEDIUM Trivy gate).
 - **CI has no build-plan item.** The project plan names the pipeline, but nothing on the build plan tracks it.
 - **Testing gap.** `AGENTS.md` declares a test gate, but only virtual-machine and storage-account have tests; the other four modules have none.
-- **Provider pin mismatch.** resource-group allows azurerm `>= 4.0`, while the other modules and the coding standards say 5.x.
+- **Provider pin wording.** Project plan §5 still says resource-group allows azurerm 4.x; every azurerm module now requires `>= 5.12, < 6.0`.
 - **Build-plan wording.** Items 6 and 7 still read "fill the empty `modules/...`", though both are complete.

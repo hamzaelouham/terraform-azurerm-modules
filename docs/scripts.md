@@ -47,7 +47,7 @@ flowchart LR
   tag --> rel --> tools & release
   monthly --> reg --> registry
   reg -. "GitLab, Azure, Jenkins" .-> tf
-  reg -. "GitHub only: AI agent" .-> verify & publish
+  reg -. "GitHub and Azure: AI agent" .-> verify & publish
 
   release --> verify & trivy
   publish --> gate
@@ -64,7 +64,7 @@ flowchart TD
   release["release-check.sh<br/>RELEASE_TAG=module/vX.Y.Z"]
   registry["check-registry.py [github|gitlab|azure]"]
   gate["check-bot-patch.sh &lt;patch&gt;"]
-  publish["publish-bot-pr.sh &lt;version&gt; &lt;dir&gt;"]
+  publish["publish-bot-pr.sh &lt;version&gt; &lt;dir&gt; [github|azure]"]
 
   tools -. "provides tools for" .-> verify & trivy
   tf -. "provides terraform for" .-> registry
@@ -162,31 +162,33 @@ deletes a tag.
 
 ![Use case 5](scripts-uc5-azurerm-check.png)
 
-### On GitLab, Azure Pipelines and Jenkins
+### On GitLab and Jenkins
 
 ```mermaid
 flowchart LR
   m(["Monthly schedule"]) --> i["install-terraform.sh 1.17.0"]
-  i --> c["check-registry.py gitlab / azure<br/>(Jenkins: no tracker)"]
+  i --> c["check-registry.py gitlab<br/>(Jenkins: no tracker)"]
   c --> q{"latest azurerm =<br/>.azurerm-reviewed-version?"}
   q -- yes --> close["close the azurerm-update issue"]
   q -- no --> rep["write azurerm-report.md<br/>validate every module<br/>open or update the issue"]
   rep -. "Jenkins" .-> unstable["report only,<br/>build marked unstable"]
 ```
 
-### On GitHub Actions, with the AI agent
+### On GitHub Actions and Azure Pipelines, with the AI agent
 
-Three jobs, each with only the access it needs.
+Three jobs, each with only the access it needs. On Azure the tracker item is a work item,
+the PR is in Azure Repos, and the full proposal is the PR's first comment because Azure
+caps PR descriptions at 4,000 characters. Setup: [azure-devops.md](azure-devops.md).
 
 ```mermaid
 sequenceDiagram
   participant C as check job<br/>(read, issues)
-  participant A as propose job<br/>(read only, model key)
+  participant A as propose job<br/>(model key; read only on GitHub,<br/>build identity on Azure)
   participant P as publish job<br/>(write, no AI)
-  participant GH as GitHub
-  C->>C: check-registry.py github
+  participant GH as GitHub / Azure Repos
+  C->>C: check-registry.py github / azure
   C->>GH: open or update the issue
-  C->>GH: does a bot/azurerm-X.Y.Z PR exist?<br/>(a manual run with retry_closed ignores closed ones)
+  C->>GH: does a bot/azurerm-X.Y.Z PR exist?<br/>(a manual run with retry_closed / retryClosed ignores closed or abandoned ones)
   alt new version and no PR yet
     C->>A: report, release notes, affected resources
     A->>A: install-tools.sh
@@ -195,7 +197,7 @@ sequenceDiagram
     A->>A: verify.sh > verify-final.txt
     A->>A: git diff > agent-patch.diff
     A->>P: patch, pr-body.md, both Verify logs
-    P->>P: publish-bot-pr.sh
+    P->>P: publish-bot-pr.sh (github / azure)
     P->>P: check-bot-patch.sh (only regular text files under modules/)
     P->>GH: push bot/azurerm-X.Y.Z (one commit)
     P->>GH: open a draft PR
@@ -213,12 +215,12 @@ the patch. A person reviews the draft PR and decides whether to merge it.
 | Script | Usage | What it does | Fails when | Called by |
 |---|---|---|---|---|
 | `install-tools.sh` | `sh scripts/install-tools.sh` | Downloads pinned tflint, trivy and terraform-docs into `.tools/bin`. POSIX sh and wget only, so it runs in the `hashicorp/terraform` image | A download fails | Developers; Verify, weekly scan, release and agent jobs on all platforms |
-| `install-terraform.sh` | `sh scripts/install-terraform.sh 1.17.0` | Downloads one Terraform version into `.tools/bin`, for jobs with python3 but no Terraform | A download fails | Monthly check on GitLab, Azure Pipelines and Jenkins |
+| `install-terraform.sh` | `sh scripts/install-terraform.sh 1.17.0` | Downloads one Terraform version into `.tools/bin`, for jobs with python3 but no Terraform | A download fails | Monthly check on GitLab, Azure Pipelines and Jenkins; the Azure agent job |
 | `verify.sh` | `sh scripts/verify.sh [module]` | For each module: `fmt`, `init`, `validate`, `tflint`, Trivy HIGH+, terraform-docs check, `terraform test`. With a module name, checks only that one and skips Trivy | Any check fails; all failures are listed at the end | Developers; every PR and push to main; `release-check.sh`; the agent job, before and after the agent |
 | `trivy-scan.sh` | `sh scripts/trivy-scan.sh <LOW\|MEDIUM\|HIGH\|CRITICAL> [module]` | Trivy at that severity and above, using `.trivyignore` | Any finding at or above the severity | Weekly scan (`HIGH`); `release-check.sh` (`MEDIUM`); developers before tagging |
 | `release-check.sh` | `RELEASE_TAG=aks/v1.0.0 sh scripts/release-check.sh` | Checks the tag format, that the module exists and that the tag is on main, runs `verify.sh` and `trivy-scan.sh MEDIUM` for that module, then writes `release-notes.md` | Bad tag, missing module, tag not on main, or a failing check | Release pipeline on a pushed `*/v*` tag |
 | `check-registry.py` | `python3 scripts/check-registry.py [github\|gitlab\|azure]` | Compares `.azurerm-reviewed-version` with the registry, writes `azurerm-report.md`, release notes and `azurerm-affected.json`, validates every module, and opens, updates or closes one `azurerm-update` issue | Network or API error, or a module no longer validates | Monthly check on all four platforms |
 | `check-bot-patch.sh` | `sh scripts/check-bot-patch.sh <patch>` | Gate on the agent's patch: only regular text files under `modules/`; no symlinks, binaries, renames, mode changes or hidden paths. Never applies the patch. An empty patch passes | The patch breaks any of those rules or git can't read it | `publish-bot-pr.sh`; developers testing a patch |
-| `publish-bot-pr.sh` | `sh scripts/publish-bot-pr.sh <version> <dir>` | Requires `pr-body.md`, gates and applies the patch, bumps `.azurerm-reviewed-version`, pushes `bot/azurerm-<version>` and opens a draft PR with both Verify summaries | No `pr-body.md` or patch, a rejected patch, or a push or PR error | GitHub `check-registry.yml` publish job only |
+| `publish-bot-pr.sh` | `sh scripts/publish-bot-pr.sh <version> <dir> [github\|azure]` | Requires `pr-body.md`, gates and applies the patch, bumps `.azurerm-reviewed-version`, pushes `bot/azurerm-<version>` and opens a draft PR with both Verify summaries (on Azure, in the PR's first comment) | No `pr-body.md` or patch, a rejected patch, missing Azure variables, or a push or PR error | The publish job of `check-registry.yml` on GitHub and Azure Pipelines |
 
 Every platform pins Terraform 1.17.0. Tool versions are pinned in `install-tools.sh`.

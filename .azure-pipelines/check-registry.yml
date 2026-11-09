@@ -1,5 +1,7 @@
-# Create this as its own pipeline. The build service identity needs permission to
-# create and edit work items, and the work item it opens is a Task tagged azurerm-update.
+# Create this as its own pipeline. Setup, permissions and the variable group:
+# docs/azure-devops.md. Mirrors .github/workflows/check-registry.yml: check opens or
+# closes the azurerm-update work item, propose runs the AI agent with no write access,
+# and publish, which runs no AI, opens the draft PR in Azure Repos.
 trigger: none
 
 pr: none
@@ -11,13 +13,173 @@ schedules:
       include: [main]
     always: true
 
+parameters:
+  - name: retryClosed
+    displayName: Run the agent even if a bot PR for this version was abandoned
+    type: boolean
+    default: false
+
 pool:
   vmImage: ubuntu-latest
 
-steps:
-  - script: sh scripts/install-terraform.sh 1.17.0
-    displayName: Install Terraform
-  - script: python3 scripts/check-registry.py azure
-    displayName: Check azurerm
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+jobs:
+  - job: check
+    steps:
+      - script: sh scripts/install-terraform.sh 1.17.0
+        displayName: Install Terraform
+      # The report copies release-note text, which Azure would read as logging commands.
+      # Defang "##vso[" in the output, and let this step set no variables (F-64).
+      - script: |
+          set -o pipefail
+          python3 scripts/check-registry.py azure 2>&1 | sed -u 's/##vso\[/# #vso[/g'
+        name: registry
+        displayName: Check azurerm
+        target:
+          settableVariables: none
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          GITHUB_OUTPUT: $(Agent.TempDirectory)/registry-outputs
+      # succeededOrFailed(): a module that no longer validates fails the step above, but
+      # still needs the agent. No file means the versions match, so nothing runs after this.
+      - script: |
+          [ -f "$OUTPUTS" ] || exit 0
+          while IFS='=' read -r key value; do
+            case $key in
+              reviewed | new_version | major_bump)
+                echo "##vso[task.setvariable variable=$key;isOutput=true]$value"
+                ;;
+            esac
+          done < "$OUTPUTS"
+        name: outputs
+        displayName: Expose versions
+        condition: succeededOrFailed()
+        env:
+          OUTPUTS: $(Agent.TempDirectory)/registry-outputs
+      # Any PR for this version, active, completed or abandoned, stops the agent, so a
+      # rejected proposal isn't sent again every month. retryClosed ignores abandoned ones.
+      - script: |
+          set -eu
+          api=$(python3 -I -c '
+          import sys, urllib.parse
+          print(sys.argv[1].rstrip("/") + "/" + urllib.parse.quote(sys.argv[2]) + "/_apis/git/repositories/" + sys.argv[3])
+          ' "$SYSTEM_COLLECTIONURI" "$SYSTEM_TEAMPROJECT" "$BUILD_REPOSITORY_ID")
+          # Read from stdin so the token stays out of the process list. On an HTTP error,
+          # show Azure's message: the agent must not run on an unknown answer.
+          printf 'header = "Authorization: Bearer %s"\n' "$SYSTEM_ACCESSTOKEN" |
+            curl -sS --fail-with-body -K - -o "$AGENT_TEMPDIRECTORY/prs.json" \
+              "$api/pullrequests?searchCriteria.sourceRefName=refs/heads/bot/azurerm-$VERSION&searchCriteria.status=all&api-version=7.1" || {
+            cat "$AGENT_TEMPDIRECTORY/prs.json" >&2
+            exit 1
+          }
+          count=$(python3 -I -c '
+          import json, sys
+          retry = sys.argv[2].lower() == "true"
+          prs = json.load(open(sys.argv[1]))["value"]
+          print(len([p for p in prs if not (retry and p["status"] == "abandoned")]))
+          ' "$AGENT_TEMPDIRECTORY/prs.json" "$RETRY_CLOSED")
+          if [ "$count" = "0" ]; then exists=false; else exists=true; fi
+          echo "pr_exists=$exists"
+          echo "##vso[task.setvariable variable=pr_exists;isOutput=true]$exists"
+        name: existing
+        displayName: Look for a bot PR
+        condition: and(succeededOrFailed(), ne(variables['outputs.new_version'], ''))
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          VERSION: $(outputs.new_version)
+          RETRY_CLOSED: ${{ parameters.retryClosed }}
+      - script: |
+          mkdir -p "$(Build.ArtifactStagingDirectory)/azurerm-report"
+          cp azurerm-report.md azurerm-release-notes.md azurerm-affected.json "$(Build.ArtifactStagingDirectory)/azurerm-report/"
+        displayName: Collect the report
+        condition: and(succeededOrFailed(), ne(variables['outputs.new_version'], ''))
+      - publish: $(Build.ArtifactStagingDirectory)/azurerm-report
+        artifact: azurerm-report
+        displayName: Publish the report
+        condition: and(succeededOrFailed(), ne(variables['outputs.new_version'], ''))
+
+  # Verify runs code from the modules, and a malicious release note could steer what the
+  # agent writes there. So this job keeps no git credentials, maps no System.AccessToken
+  # into any step, and gives the model key only to the agent step. Use a dedicated key
+  # with a spending limit.
+  # Accepted risk (F-58): Azure can't make one job's token read-only, so this job still
+  # runs as the build service identity, which can push to bot/ branches only. Code the
+  # agent wrote could use that to get past check-bot-patch.sh on bot/ branches. It can't
+  # reach main, which needs a required maintainer's approval (docs/azure-devops.md).
+  - job: propose
+    dependsOn: check
+    condition: and(always(), ne(dependencies.check.outputs['outputs.new_version'], ''), eq(dependencies.check.outputs['existing.pr_exists'], 'false'))
+    timeoutInMinutes: 30
+    variables:
+      # Defined before the group, so it is empty rather than the literal "$(OPENAI_BASE_URL)"
+      # when the group doesn't set it.
+      - name: OPENAI_BASE_URL
+        value: ""
+      - group: azurerm-upgrade-agent
+      - name: REVIEWED
+        value: $[ dependencies.check.outputs['outputs.reviewed'] ]
+      - name: VERSION
+        value: $[ dependencies.check.outputs['outputs.new_version'] ]
+      - name: MAJOR_BUMP
+        value: $[ dependencies.check.outputs['outputs.major_bump'] ]
+    steps:
+      - checkout: self
+        persistCredentials: false
+      - download: current
+        artifact: azurerm-report
+      - script: cp "$(Pipeline.Workspace)/azurerm-report/"* .
+        displayName: Use the report
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: "3.13"
+      # Every package, including indirect ones, is pinned with hashes.
+      - script: pip install --require-hashes -r ai-agent/requirements.txt
+        displayName: Install the agent
+      - script: sh scripts/install-terraform.sh 1.17.0 && sh scripts/install-tools.sh
+        displayName: Install Terraform and CI tools
+      # A failure doesn't stop the job: a new azurerm breaking the modules is what the agent is for.
+      - script: sh scripts/verify.sh > verify-baseline.txt 2>&1 || true
+        displayName: Verify before the agent
+      - script: python ai-agent/main.py "$REVIEWED" "$VERSION" "$MAJOR_BUMP"
+        displayName: Run the agent
+        env:
+          OPENAI_API_KEY: $(OPENAI_API_KEY)
+      # No key here: this result, not the agent's own account, goes in the PR. It runs where
+      # agent-written HCL already ran, so the PR's own build validation is the one to trust.
+      - script: sh scripts/verify.sh > verify-final.txt 2>&1 || true
+        displayName: Verify after the agent
+      # --no-renames: the patch gate rejects renames, and a move is just a delete and a new file.
+      - script: |
+          git add -N .
+          git diff --binary --no-renames HEAD -- . > agent-patch.diff
+          mkdir -p "$(Build.ArtifactStagingDirectory)/agent-proposal"
+          cp agent-patch.diff pr-body.md verify-baseline.txt verify-final.txt "$(Build.ArtifactStagingDirectory)/agent-proposal/"
+        displayName: Build the patch
+      - publish: $(Build.ArtifactStagingDirectory)/agent-proposal
+        artifact: agent-proposal
+
+  # No AI and no model key: this is the only job that can write to the repo.
+  - job: publish
+    dependsOn: [check, propose]
+    # always(): the check can fail on a module that no longer validates, and the PR is still wanted.
+    condition: and(always(), eq(dependencies.propose.result, 'Succeeded'))
+    variables:
+      - name: VERSION
+        value: $[ dependencies.check.outputs['outputs.new_version'] ]
+    steps:
+      # The commit that triggered the run, which the patch was built against: main on the
+      # schedule. A manual run from another branch also puts that branch's commits in the PR.
+      - checkout: self
+        persistCredentials: true
+      - download: current
+        artifact: agent-proposal
+      # The patch's file names and the agent's text can reach this output, so defang
+      # Azure logging commands here too (F-64).
+      - script: |
+          set -o pipefail
+          sh scripts/publish-bot-pr.sh "$VERSION" "$(Pipeline.Workspace)/agent-proposal" azure 2>&1 |
+            sed -u 's/##vso\[/# #vso[/g'
+        displayName: Open the draft PR
+        target:
+          settableVariables: none
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)

@@ -340,7 +340,7 @@ Terraform module library; no dev server or build. Run from the repo root unless 
   (compares `.azurerm-reviewed-version` with the registry; with no tracker it only
   writes `azurerm-report.md`; runs monthly, and on Jenkins as an unstable build)
 - Upgrade agent tests: `pip install --require-hashes -r ai-agent/requirements-dev.txt && pytest ai-agent/tests`
-  (offline, with a scripted fake model; the agent itself only runs in `check-registry.yml`)
+  (offline, with a scripted fake model; the agent itself only runs in `check-registry.yml` on GitHub Actions and Azure Pipelines)
 - Upgrade agent lock files: edit `ai-agent/requirements.in` or `requirements-dev.in`, then
   regenerate both from `ai-agent/` with the `uv pip compile --generate-hashes` command in
   each lock file's header. Every package, including indirect ones, is pinned with hashes.
