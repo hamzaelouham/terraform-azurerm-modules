@@ -16,10 +16,13 @@
 
 - `required_version = ">= 1.17"` in every module. Do not use newer language
   features without raising it.
-- Pin providers to a major range: azurerm `">= 5.12, < 6.0"`, azapi
-  `">= 2.0, < 3.0"`, azuread 3.x. Use azapi only for what azurerm can't do.
-- The azurerm floor is the version in `.azurerm-reviewed-version`, the one the
-  modules were checked against. Raise it together with that file.
+- Pin providers to a major range, with the floor the module needs: for example azurerm
+  `">= 5.12, < 6.0"`, azapi `">= 2.0, < 3.0"`, azuread 3.x. Use azapi only for what
+  azurerm can't do.
+- `.azurerm-reviewed-version` is the newest azurerm the modules were checked against.
+  A module's azurerm floor is the oldest release with everything that module uses.
+  Raise a floor only when a change needs a newer provider, and only in that module.
+  A raised floor breaks callers, so it needs a major version bump of the module.
 - Modules never configure providers; callers do.
 
 ## Module boundaries

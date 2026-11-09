@@ -4,7 +4,7 @@ terraform {
   required_providers {
     azurerm = {
       source = "hashicorp/azurerm"
-      # 5.12 is the version this module's arguments were checked against.
+      # 5.12 is the oldest azurerm with everything this module uses.
       version = ">= 5.12, < 6.0"
     }
   }

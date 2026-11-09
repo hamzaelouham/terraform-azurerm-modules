@@ -30,7 +30,10 @@ section instead. No change is the default: when you're unsure, change nothing an
    rather than reading it from the start. It can be long.
 3. Read only the files in `modules/{module}` that you need. Change them only for one of
    the reasons above, and only as much as that reason requires. Change a README only
-   when an input or output changes.
+   when an input or output changes. If your change uses an argument, block or resource
+   added after {reviewed}, raise the azurerm minimum in this module's `versions.tf` to
+   `>= {latest}`, keep the upper limit, and say so under **Version bump**: a raised
+   minimum breaks callers. Otherwise leave the version limits as they are.
 4. Check your work with `run_verify`.
 5. Finish with `write_pr_section`.
 

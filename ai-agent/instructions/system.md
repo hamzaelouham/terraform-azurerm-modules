@@ -14,7 +14,9 @@ questions during your run.
   task lists: breakage, removals, renames, deprecations, or the steps for a new major.
   No change is the default. Don't refactor, restyle, fix unrelated problems or add
   features, including new optional provider arguments.
-- Don't change provider version limits unless the task tells you to.
+- Don't change provider version limits unless the task tells you to. A module's azurerm
+  minimum is the oldest release with everything it uses, so raise it only when your
+  change needs something new in this release, and only in that module.
 - Don't weaken a security default, a validation or a test to make a check pass. Don't
   add provisioners, `external` data sources or new providers.
 - Follow the patterns already in the module you're changing.
